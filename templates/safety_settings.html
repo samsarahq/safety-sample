@@ -1,0 +1,1413 @@
+{% extends "base.html" %}
+
+{% block title %}Safety Settings{% endblock %}
+
+{% block extra_head %}
+<style>
+  .card {
+    transition: all 0.3s ease;
+  }
+  .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  .settings-table th, .settings-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .settings-table tr:hover {
+    background-color: #f7fafc;
+  }
+  .toggle-section {
+    cursor: pointer;
+  }
+  .section-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .section-content.open {
+    max-height: 1000px;
+  }
+  .severity-very-low { background-color: #e6fffa; }
+  .severity-low { background-color: #e3f8ff; }
+  .severity-medium { background-color: #fffaf0; }
+  .severity-high { background-color: #fff5f5; }
+  .severity-very-high { background-color: #fff0f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900">Safety Settings</h1>
+    <p class="text-gray-600 mt-2">View and compare safety settings across your organizations</p>
+  </div>
+
+  {% if error %}
+  <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+    <p>{{ error }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Organization selector -->
+  <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Select Organizations</h2>
+    <div class="flex flex-wrap items-center gap-4 mb-4">
+      <button id="select-all-btn" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+        Select All
+      </button>
+      <button id="clear-selection-btn" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+        Clear Selection
+      </button>
+    </div>
+    <div id="org-selection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for org in organizations %}
+      <div class="org-card flex items-center border rounded p-3 cursor-pointer hover:bg-gray-50" data-org-id="{{ org.org_id }}" data-org-name="{{ org.org_name }}">
+        <input type="checkbox" class="org-checkbox mr-3 h-5 w-5 text-blue-600" id="org-{{ org.org_id }}">
+        <label for="org-{{ org.org_id }}" class="cursor-pointer flex-grow font-medium">{{ org.org_name }}</label>
+        <span class="text-xs bg-gray-200 rounded-full px-2 py-1">{{ org.region }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-4 flex justify-end">
+      <button id="load-settings-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+        Load Safety Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- Stored Safety Settings section -->
+  <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Stored Safety Settings</h2>
+    <div class="flex items-center gap-2 mb-4">
+      <span class="text-gray-600">Last Updated: <span id="last-updated-date">Never</span></span>
+      <button id="refresh-stored-settings" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 hidden">
+        Refresh
+      </button>
+      <button id="compare-stored-settings" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 ml-3 hidden">
+        Compare Selected Settings
+      </button>
+    </div>
+    
+    <div id="stored-settings-error" class="text-red-600 mb-4 hidden"></div>
+    <div id="stored-settings-empty" class="text-gray-500 mb-4">No stored settings found</div>
+    
+    <div id="stored-settings-table-container" class="overflow-x-auto">
+      <table class="settings-table min-w-full">
+        <thead>
+          <tr class="bg-gray-50">
+            <th class="sticky left-0 bg-gray-50">
+              <input type="checkbox" id="select-all-stored" class="mr-2 h-4 w-4 text-blue-600">
+              Organization
+            </th>
+            <th>Detection Alerts Enabled</th>
+            <th>Audio Alerts Enabled</th>
+            <th>Voice Coaching</th>
+            <th>Harsh Event Sensitivity</th>
+            <th>Last Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="stored-settings-table">
+          <!-- Will be populated by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="loading-indicator" class="hidden">
+    <div class="flex items-center justify-center p-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
+    </div>
+    <p class="text-center text-gray-600">Loading settings for <span id="loading-count">0</span> of <span id="total-count">0</span> organizations...</p>
+  </div>
+
+  <!-- Settings display area -->
+  <div id="settings-display" class="hidden space-y-6">
+    <h2 class="text-2xl font-bold text-gray-900">Safety Settings Comparison</h2>
+    <p class="text-gray-600">Displaying settings for <span id="orgs-loaded">0</span> organizations</p>
+    
+    <!-- Quick summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Safety Score Weights Summary -->
+      <div class="card bg-white rounded-lg shadow-md p-4">
+        <h3 class="text-lg font-semibold text-gray-800">Safety Score Weights</h3>
+        <p class="text-sm text-gray-600">Key factors that influence safety scores</p>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs">
+            <span>Crash Weight:</span>
+            <span id="crash-weight-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Harsh Events:</span>
+            <span id="harsh-weight-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Inattentive Driving:</span>
+            <span id="inattentive-weight-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Speeding:</span>
+            <span id="speeding-weight-summary">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerts Configuration Summary -->
+      <div class="card bg-white rounded-lg shadow-md p-4">
+        <h3 class="text-lg font-semibold text-gray-800">Detection Alerts</h3>
+        <p class="text-sm text-gray-600">Alert configurations across organizations</p>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs">
+            <span>Rolling Stop Alerts:</span>
+            <span id="rolling-stop-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Following Distance:</span>
+            <span id="following-distance-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Forward Collision:</span>
+            <span id="collision-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Distracted Driving:</span>
+            <span id="distracted-summary">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Alerts Summary -->
+      <div class="card bg-white rounded-lg shadow-md p-4">
+        <h3 class="text-lg font-semibold text-gray-800">Audio Alerts</h3>
+        <p class="text-sm text-gray-600">In-cab audio alert configurations</p>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs">
+            <span>Following Distance:</span>
+            <span id="audio-following-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Forward Collision:</span>
+            <span id="audio-collision-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Inattentive Driving:</span>
+            <span id="audio-inattentive-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Voice Coaching:</span>
+            <span id="voice-coaching-summary">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Harsh Event Sensitivity -->
+      <div class="card bg-white rounded-lg shadow-md p-4">
+        <h3 class="text-lg font-semibold text-gray-800">Harsh Event Sensitivity</h3>
+        <p class="text-sm text-gray-600">Detection sensitivity settings</p>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs">
+            <span>Harsh Accel:</span>
+            <span id="accel-sensitivity-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Harsh Brake:</span>
+            <span id="brake-sensitivity-summary">-</span>
+          </div>
+          <div class="flex justify-between text-xs mt-1">
+            <span>Harsh Turn:</span>
+            <span id="turn-sensitivity-summary">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed settings sections -->
+    <div id="detailed-settings" class="bg-white rounded-lg shadow-md">
+      <!-- Safety Score Weights Section -->
+      <div class="border-b">
+        <div class="toggle-section p-4 flex justify-between items-center" data-target="score-weights">
+          <h3 class="text-lg font-semibold text-gray-800">Safety Score Weights</h3>
+          <svg class="w-5 h-5 transform toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div id="score-weights" class="section-content px-4 pb-4">
+          <div class="overflow-x-auto">
+            <table class="settings-table min-w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="sticky left-0 bg-gray-50">Organization</th>
+                  <th>Crash</th>
+                  <th>Harsh Accel</th>
+                  <th>Harsh Brake</th>
+                  <th>Harsh Turn</th>
+                  <th>Inattentive</th>
+                  <th>AI Inattentive</th>
+                  <th>Following Distance</th>
+                  <th>Speeding</th>
+                  <th>Rolling Stop</th>
+                </tr>
+              </thead>
+              <tbody id="score-weights-body">
+                <!-- Will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detection Alerts Section -->
+      <div class="border-b">
+        <div class="toggle-section p-4 flex justify-between items-center" data-target="detection-alerts">
+          <h3 class="text-lg font-semibold text-gray-800">Detection Alerts</h3>
+          <svg class="w-5 h-5 transform toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div id="detection-alerts" class="section-content px-4 pb-4">
+          <div class="overflow-x-auto">
+            <table class="settings-table min-w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="sticky left-0 bg-gray-50">Organization</th>
+                  <th>Rolling Stop</th>
+                  <th>Following Distance</th>
+                  <th>Forward Collision</th>
+                  <th>Distracted Driving</th>
+                  <th>Inattentive Driving</th>
+                  <th>Mobile Usage</th>
+                  <th>Policy Violations</th>
+                </tr>
+              </thead>
+              <tbody id="detection-alerts-body">
+                <!-- Will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Alerts Section -->
+      <div class="border-b">
+        <div class="toggle-section p-4 flex justify-between items-center" data-target="audio-alerts">
+          <h3 class="text-lg font-semibold text-gray-800">Audio Alerts</h3>
+          <svg class="w-5 h-5 transform toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div id="audio-alerts" class="section-content px-4 pb-4">
+          <div class="overflow-x-auto">
+            <table class="settings-table min-w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="sticky left-0 bg-gray-50">Organization</th>
+                  <th>Following Distance</th>
+                  <th>Forward Collision</th>
+                  <th>Inattentive Driving</th>
+                  <th>Policy Violations</th>
+                  <th>Voice Coaching</th>
+                  <th>Coaching Events</th>
+                </tr>
+              </thead>
+              <tbody id="audio-alerts-body">
+                <!-- Will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Harsh Event Sensitivity Section -->
+      <div class="border-b">
+        <div class="toggle-section p-4 flex justify-between items-center" data-target="harsh-sensitivity">
+          <h3 class="text-lg font-semibold text-gray-800">Harsh Event Sensitivity</h3>
+          <svg class="w-5 h-5 transform toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div id="harsh-sensitivity" class="section-content px-4 pb-4">
+          <div class="overflow-x-auto">
+            <table class="settings-table min-w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="sticky left-0 bg-gray-50">Organization</th>
+                  <th>Accel (Passenger)</th>
+                  <th>Accel (Light Duty)</th>
+                  <th>Accel (Heavy Duty)</th>
+                  <th>Brake (Passenger)</th>
+                  <th>Brake (Light Duty)</th>
+                  <th>Brake (Heavy Duty)</th>
+                  <th>Turn (Passenger)</th>
+                  <th>Turn (Light Duty)</th>
+                  <th>Turn (Heavy Duty)</th>
+                </tr>
+              </thead>
+              <tbody id="harsh-sensitivity-body">
+                <!-- Will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speeding Settings Section -->
+      <div>
+        <div class="toggle-section p-4 flex justify-between items-center" data-target="speeding-settings">
+          <h3 class="text-lg font-semibold text-gray-800">Speeding Settings</h3>
+          <svg class="w-5 h-5 transform toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div id="speeding-settings" class="section-content px-4 pb-4">
+          <div class="overflow-x-auto">
+            <table class="settings-table min-w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="sticky left-0 bg-gray-50">Organization</th>
+                  <th>Unit</th>
+                  <th>Light Threshold</th>
+                  <th>Moderate Threshold</th>
+                  <th>Heavy Threshold</th>
+                  <th>Severe Threshold</th>
+                  <th>Duration (sec)</th>
+                </tr>
+              </thead>
+              <tbody id="speeding-settings-body">
+                <!-- Will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings detail modal -->
+<div id="settings-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div class="p-6 border-b">
+      <div class="flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-900" id="modal-title">Settings Detail</h3>
+        <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-6">
+      <div id="modal-content" class="space-y-4">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+    <div class="p-6 border-t bg-gray-50 flex justify-end">
+      <button id="close-modal-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Global variables
+  const organizations = {{ organizations|tojson }};
+  let selectedOrgs = [];
+  let orgSettings = {};
+  let storedSettings = [];
+  let selectedStoredOrgs = [];
+  
+  // Elements
+  const orgCards = document.querySelectorAll('.org-card');
+  const selectAllBtn = document.getElementById('select-all-btn');
+  const clearSelectionBtn = document.getElementById('clear-selection-btn');
+  const loadSettingsBtn = document.getElementById('load-settings-btn');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const settingsDisplay = document.getElementById('settings-display');
+  const loadingCount = document.getElementById('loading-count');
+  const totalCount = document.getElementById('total-count');
+  const orgsLoaded = document.getElementById('orgs-loaded');
+  
+  // Elements for stored settings
+  const refreshStoredSettingsBtn = document.getElementById('refresh-stored-settings');
+  const compareStoredSettingsBtn = document.getElementById('compare-stored-settings');
+  const selectAllStoredCheckbox = document.getElementById('select-all-stored');
+  const storedSettingsError = document.getElementById('stored-settings-error');
+  const storedSettingsEmpty = document.getElementById('stored-settings-empty');
+  const storedSettingsTableContainer = document.getElementById('stored-settings-table-container');
+  const lastUpdatedDate = document.getElementById('last-updated-date');
+  
+  // Modal elements
+  const settingsDetailModal = document.getElementById('settings-detail-modal');
+  const closeModalBtn = document.getElementById('close-modal-btn');
+  const closeModalX = document.getElementById('close-modal');
+  const modalTitle = document.getElementById('modal-title');
+  const modalContent = document.getElementById('modal-content');
+  
+  // Load stored settings on page load
+  loadStoredSettings();
+  
+  // Refresh stored settings button
+  refreshStoredSettingsBtn.addEventListener('click', loadStoredSettings);
+  
+  // Compare stored settings button
+  compareStoredSettingsBtn.addEventListener('click', function() {
+    compareSelectedStoredSettings();
+  });
+  
+  // Select all stored orgs checkbox
+  selectAllStoredCheckbox.addEventListener('change', function() {
+    const isChecked = this.checked;
+    document.querySelectorAll('.stored-org-checkbox').forEach(checkbox => {
+      checkbox.checked = isChecked;
+    });
+    updateSelectedStoredOrgs();
+  });
+  
+  // Close modal buttons
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', function() {
+      settingsDetailModal.classList.add('hidden');
+    });
+  }
+  
+  if (closeModalX) {
+    closeModalX.addEventListener('click', function() {
+      settingsDetailModal.classList.add('hidden');
+    });
+  }
+  
+  // Toggle sections
+  const toggleSections = document.querySelectorAll('.toggle-section');
+  toggleSections.forEach(section => {
+    section.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const target = document.getElementById(targetId);
+      target.classList.toggle('open');
+      
+      // Rotate arrow icon
+      const icon = this.querySelector('.toggle-icon');
+      icon.classList.toggle('rotate-180');
+    });
+  });
+  
+  // Handle organization selection
+  orgCards.forEach(card => {
+    card.addEventListener('click', function(e) {
+      // Don't toggle if clicking directly on the checkbox (it will toggle automatically)
+      if (e.target.type !== 'checkbox') {
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        checkbox.checked = !checkbox.checked;
+      }
+      
+      updateSelectedOrgs();
+    });
+  });
+  
+  // Select all organizations
+  selectAllBtn.addEventListener('click', function() {
+    orgCards.forEach(card => {
+      const checkbox = card.querySelector('input[type="checkbox"]');
+      checkbox.checked = true;
+    });
+    updateSelectedOrgs();
+  });
+  
+  // Clear selection
+  clearSelectionBtn.addEventListener('click', function() {
+    orgCards.forEach(card => {
+      const checkbox = card.querySelector('input[type="checkbox"]');
+      checkbox.checked = false;
+    });
+    updateSelectedOrgs();
+  });
+  
+  // Update selected organizations list
+  function updateSelectedOrgs() {
+    selectedOrgs = [];
+    orgCards.forEach(card => {
+      const checkbox = card.querySelector('input[type="checkbox"]');
+      if (checkbox.checked) {
+        selectedOrgs.push({
+          id: card.getAttribute('data-org-id'),
+          name: card.getAttribute('data-org-name')
+        });
+      }
+    });
+    
+    // Enable/disable load button based on selection
+    loadSettingsBtn.disabled = selectedOrgs.length === 0;
+  }
+  
+  // Update selected stored organizations list
+  function updateSelectedStoredOrgs() {
+    selectedStoredOrgs = [];
+    document.querySelectorAll('.stored-org-checkbox').forEach(checkbox => {
+      if (checkbox.checked) {
+        const orgId = checkbox.getAttribute('data-org-id');
+        const org = storedSettings.find(o => o.org_id === orgId);
+        if (org) {
+          selectedStoredOrgs.push(org);
+        }
+      }
+    });
+    
+    // Show/hide compare button based on selection
+    if (selectedStoredOrgs.length > 0) {
+      compareStoredSettingsBtn.classList.remove('hidden');
+    } else {
+      compareStoredSettingsBtn.classList.add('hidden');
+    }
+  }
+  
+  // Load safety settings for selected organizations
+  loadSettingsBtn.addEventListener('click', async function() {
+    if (selectedOrgs.length === 0) return;
+    
+    // Reset previous data
+    orgSettings = {};
+    settingsDisplay.classList.add('hidden');
+    loadingIndicator.classList.remove('hidden');
+    loadingCount.textContent = '0';
+    totalCount.textContent = selectedOrgs.length;
+    
+    let loadedCount = 0;
+    
+    // Load settings for each organization
+    for (const org of selectedOrgs) {
+      try {
+        const response = await fetch(`/api/safety-settings/${org.id}`);
+        if (!response.ok) {
+          console.error(`Error loading settings for ${org.name}:`, await response.text());
+          continue;
+        }
+        
+        const data = await response.json();
+        if (data && data.data && data.data.length > 0) {
+          orgSettings[org.id] = {
+            name: org.name,
+            settings: data.data[0]
+          };
+        }
+        
+        loadedCount++;
+        loadingCount.textContent = loadedCount;
+      } catch (error) {
+        console.error(`Error fetching settings for ${org.name}:`, error);
+      }
+    }
+    
+    // Hide loading indicator and show settings
+    loadingIndicator.classList.add('hidden');
+    settingsDisplay.classList.remove('hidden');
+    orgsLoaded.textContent = Object.keys(orgSettings).length;
+    
+    // Render settings data
+    renderSettings();
+    
+    // Refresh stored settings after a short delay
+    setTimeout(loadStoredSettings, 1000);
+  });
+  
+  // Compare selected stored settings
+  function compareSelectedStoredSettings() {
+    if (selectedStoredOrgs.length === 0) return;
+    
+    // Reset previous data
+    orgSettings = {};
+    
+    // Convert stored settings to the format expected by renderSettings
+    selectedStoredOrgs.forEach(org => {
+      if (org.settings && org.settings.data && org.settings.data.length > 0) {
+        orgSettings[org.org_id] = {
+          name: org.org_name,
+          settings: org.settings.data[0]
+        };
+      }
+    });
+    
+    // Show settings display
+    settingsDisplay.classList.remove('hidden');
+    orgsLoaded.textContent = Object.keys(orgSettings).length;
+    
+    // Render settings data
+    renderSettings();
+    
+    // Make sure the first section is open
+    if (toggleSections.length > 0) {
+      const firstSection = toggleSections[0];
+      const targetId = firstSection.getAttribute('data-target');
+      const target = document.getElementById(targetId);
+      if (!target.classList.contains('open')) {
+        target.classList.add('open');
+        firstSection.querySelector('.toggle-icon').classList.add('rotate-180');
+      }
+    }
+    
+    // Scroll to the comparison section
+    settingsDisplay.scrollIntoView({ behavior: 'smooth' });
+  }
+  
+  // Load stored settings function
+  function loadStoredSettings() {
+    storedSettingsError.textContent = '';
+    storedSettingsError.classList.add('hidden');
+    storedSettingsEmpty.classList.remove('hidden');
+    
+    fetch('/api/stored-safety-settings')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Error fetching stored settings');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Check for errors in the response
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        // Update last updated date
+        if (data.last_updated) {
+          const date = new Date(data.last_updated);
+          lastUpdatedDate.textContent = date.toLocaleString();
+        } else {
+          lastUpdatedDate.textContent = 'Never';
+        }
+        
+        // Store the settings data for later use
+        storedSettings = data.settings || [];
+        
+        // If no settings, show empty message
+        if (!storedSettings.length) {
+          storedSettingsEmpty.textContent = 'No stored settings found';
+          storedSettingsEmpty.classList.remove('hidden');
+          storedSettingsTableContainer.classList.add('hidden');
+          compareStoredSettingsBtn.classList.add('hidden');
+          return;
+        }
+        
+        // Populate table with stored settings
+        renderStoredSettingsTable(storedSettings);
+        storedSettingsEmpty.classList.add('hidden');
+        storedSettingsTableContainer.classList.remove('hidden');
+        
+        // Update selected stored orgs
+        updateSelectedStoredOrgs();
+      })
+      .catch(error => {
+        console.error('Error loading stored settings:', error);
+        storedSettingsError.textContent = 'Error loading stored settings: ' + error.message;
+        storedSettingsError.classList.remove('hidden');
+        storedSettingsEmpty.classList.add('hidden');
+        storedSettingsTableContainer.classList.add('hidden');
+        compareStoredSettingsBtn.classList.add('hidden');
+      });
+  }
+  
+  // Render the stored settings table
+  function renderStoredSettingsTable(settings) {
+    const tableBody = document.getElementById('stored-settings-table');
+    tableBody.innerHTML = '';
+    
+    settings.forEach(org => {
+      const row = document.createElement('tr');
+      const s = org.settings.data[0]; // Get the settings data
+      
+      // Count enabled detection alerts
+      let detectionAlertsEnabled = 0;
+      let detectionAlertsTotal = 0;
+      
+      if (s.rollingStopDetectionAlerts) {
+        detectionAlertsTotal++;
+        if (s.rollingStopDetectionAlerts.isEnabled) detectionAlertsEnabled++;
+      }
+      if (s.followingDistanceDetectionAlerts) {
+        detectionAlertsTotal++;
+        if (s.followingDistanceDetectionAlerts.isEnabled) detectionAlertsEnabled++;
+      }
+      if (s.forwardCollisionDetectionAlerts) {
+        detectionAlertsTotal++;
+        if (s.forwardCollisionDetectionAlerts.isEnabled) detectionAlertsEnabled++;
+      }
+      if (s.distractedDrivingDetectionAlerts) {
+        detectionAlertsTotal++;
+        if (s.distractedDrivingDetectionAlerts.isEnabled) detectionAlertsEnabled++;
+      }
+      
+      // Count enabled audio alerts
+      let audioAlertsEnabled = 0;
+      let audioAlertsTotal = 0;
+      
+      if (s.followingDistanceDetectionAlerts) {
+        audioAlertsTotal++;
+        if (s.followingDistanceDetectionAlerts.hasInCabAudioAlertsEnabled) audioAlertsEnabled++;
+      }
+      if (s.forwardCollisionDetectionAlerts) {
+        audioAlertsTotal++;
+        if (s.forwardCollisionDetectionAlerts.hasInCabAudioAlertsEnabled) audioAlertsEnabled++;
+      }
+      if (s.distractedDrivingDetectionAlerts?.inattentiveDrivingDetectionAlerts) {
+        audioAlertsTotal++;
+        if (s.distractedDrivingDetectionAlerts.inattentiveDrivingDetectionAlerts.hasInCabAudioAlertsEnabled) 
+          audioAlertsEnabled++;
+      }
+      
+      // Format the last updated date
+      const lastUpdated = new Date(org.last_updated).toLocaleString();
+      
+      // Create a formatted string for harsh event sensitivity
+      let sensitivityStr = 'Not configured';
+      if (s.harshEventSensitivity?.harshAccelSensitivityGForce?.passenger) {
+        sensitivityStr = `Accel: ${s.harshEventSensitivity.harshAccelSensitivityGForce.passenger}g, `;
+        sensitivityStr += `Brake: ${s.harshEventSensitivity.harshBrakeSensitivityGForce.passenger}g, `;
+        sensitivityStr += `Turn: ${s.harshEventSensitivity.harshTurnSensitivityGForce.passenger}g`;
+      }
+      
+      // Build the row
+      row.innerHTML = `
+        <td class="sticky left-0 bg-white font-medium">
+          <input type="checkbox" class="stored-org-checkbox mr-2 h-4 w-4 text-blue-600" data-org-id="${org.org_id}">
+          ${org.org_name}
+        </td>
+        <td>${detectionAlertsEnabled}/${detectionAlertsTotal} enabled</td>
+        <td>${audioAlertsEnabled}/${audioAlertsTotal} enabled</td>
+        <td>${s.voiceCoaching?.isEnabled ? 'Enabled' : 'Disabled'}</td>
+        <td class="truncate max-w-xs">${sensitivityStr}</td>
+        <td>${lastUpdated}</td>
+        <td>
+          <button class="view-details-btn px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700" 
+                  data-org-id="${org.org_id}">
+            View Details
+          </button>
+        </td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+    
+    // Add event listeners to view details buttons
+    document.querySelectorAll('.view-details-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const orgId = this.getAttribute('data-org-id');
+        const org = settings.find(o => o.org_id === orgId);
+        if (org) {
+          showSettingsDetail(org);
+        }
+      });
+    });
+    
+    // Add event listeners to stored org checkboxes
+    document.querySelectorAll('.stored-org-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', updateSelectedStoredOrgs);
+    });
+  }
+  
+  // Show settings detail in modal
+  function showSettingsDetail(org) {
+    modalTitle.textContent = `Settings for ${org.org_name}`;
+    modalContent.innerHTML = '';
+    
+    const s = org.settings.data[0]; // Get the settings data
+    
+    // Create sections for different settings
+    const sections = [
+      {
+        title: 'Safety Score Weights',
+        content: buildScoreWeightsSection(s.safetyScoreConfiguration)
+      },
+      {
+        title: 'Detection Alerts',
+        content: buildDetectionAlertsSection(s)
+      },
+      {
+        title: 'Audio Alerts',
+        content: buildAudioAlertsSection(s)
+      },
+      {
+        title: 'Harsh Event Sensitivity',
+        content: buildHarshSensitivitySection(s.harshEventSensitivity)
+      },
+      {
+        title: 'Speeding Settings',
+        content: buildSpeedingSettingsSection(s.speedingSettings)
+      }
+    ];
+    
+    // Add sections to modal
+    sections.forEach(section => {
+      const sectionDiv = document.createElement('div');
+      sectionDiv.classList.add('border', 'rounded', 'overflow-hidden', 'mb-4');
+      
+      sectionDiv.innerHTML = `
+        <div class="bg-gray-50 px-4 py-3 border-b">
+          <h4 class="font-medium text-gray-800">${section.title}</h4>
+        </div>
+        <div class="p-4">
+          ${section.content}
+        </div>
+      `;
+      
+      modalContent.appendChild(sectionDiv);
+    });
+    
+    // Show the modal
+    settingsDetailModal.classList.remove('hidden');
+  }
+  
+  // Helper functions to build modal content sections
+  function buildScoreWeightsSection(config) {
+    if (!config) return '<p class="text-gray-500">No score weight configuration available</p>';
+    
+    return `
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-sm font-medium">Crash Weight</p>
+          <p class="text-lg">${config.crashWeight || 0}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Harsh Accel Weight</p>
+          <p class="text-lg">${config.harshAccelWeight || 0}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Harsh Brake Weight</p>
+          <p class="text-lg">${config.harshBrakeWeight || 0}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Harsh Turn Weight</p>
+          <p class="text-lg">${config.harshTurnWeight || 0}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Inattentive Driving Weight</p>
+          <p class="text-lg">${config.inattentiveDrivingWeight || 0}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">AI Inattentive Weight</p>
+          <p class="text-lg">${config.aiInattentiveDrivingDetectionWeight || 0}</p>
+        </div>
+      </div>
+    `;
+  }
+  
+  function buildDetectionAlertsSection(settings) {
+    return `
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-sm font-medium">Rolling Stop Alerts</p>
+          <p class="text-lg">${settings.rollingStopDetectionAlerts?.isEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Following Distance Alerts</p>
+          <p class="text-lg">${settings.followingDistanceDetectionAlerts?.isEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Forward Collision Alerts</p>
+          <p class="text-lg">${settings.forwardCollisionDetectionAlerts?.isEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Distracted Driving Alerts</p>
+          <p class="text-lg">${settings.distractedDrivingDetectionAlerts?.isEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+      </div>
+    `;
+  }
+  
+  function buildAudioAlertsSection(settings) {
+    return `
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-sm font-medium">Following Distance Audio</p>
+          <p class="text-lg">${settings.followingDistanceDetectionAlerts?.hasInCabAudioAlertsEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Forward Collision Audio</p>
+          <p class="text-lg">${settings.forwardCollisionDetectionAlerts?.hasInCabAudioAlertsEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Voice Coaching</p>
+          <p class="text-lg">${settings.voiceCoaching?.isEnabled ? 
+            '<span class="text-green-600">Enabled</span>' : 
+            '<span class="text-red-600">Disabled</span>'}</p>
+        </div>
+      </div>
+    `;
+  }
+  
+  function buildHarshSensitivitySection(sensitivity) {
+    if (!sensitivity) return '<p class="text-gray-500">No harsh event sensitivity configuration available</p>';
+    
+    return `
+      <div>
+        <h5 class="font-medium mb-2">Harsh Acceleration (g-force)</h5>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <p class="text-sm text-gray-600">Passenger</p>
+            <p class="text-lg">${sensitivity.harshAccelSensitivityGForce?.passenger || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Light Duty</p>
+            <p class="text-lg">${sensitivity.harshAccelSensitivityGForce?.lightDuty || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Heavy Duty</p>
+            <p class="text-lg">${sensitivity.harshAccelSensitivityGForce?.heavyDuty || '-'}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-4">
+        <h5 class="font-medium mb-2">Harsh Braking (g-force)</h5>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <p class="text-sm text-gray-600">Passenger</p>
+            <p class="text-lg">${sensitivity.harshBrakeSensitivityGForce?.passenger || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Light Duty</p>
+            <p class="text-lg">${sensitivity.harshBrakeSensitivityGForce?.lightDuty || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Heavy Duty</p>
+            <p class="text-lg">${sensitivity.harshBrakeSensitivityGForce?.heavyDuty || '-'}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-4">
+        <h5 class="font-medium mb-2">Harsh Turn (g-force)</h5>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <p class="text-sm text-gray-600">Passenger</p>
+            <p class="text-lg">${sensitivity.harshTurnSensitivityGForce?.passenger || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Light Duty</p>
+            <p class="text-lg">${sensitivity.harshTurnSensitivityGForce?.lightDuty || '-'}</p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Heavy Duty</p>
+            <p class="text-lg">${sensitivity.harshTurnSensitivityGForce?.heavyDuty || '-'}</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  function buildSpeedingSettingsSection(speedingSettings) {
+    if (!speedingSettings) return '<p class="text-gray-500">No speeding settings configuration available</p>';
+    
+    // Extract threshold values for each severity level
+    let lightThreshold = '-';
+    let moderateThreshold = '-';
+    let heavyThreshold = '-';
+    let severeThreshold = '-';
+    let duration = '-';
+    
+    if (speedingSettings.severityLevels) {
+      speedingSettings.severityLevels.forEach(level => {
+        const durationSec = level.durationMs ? (level.durationMs / 1000) : '-';
+        
+        if (level.severityLevel === 'light' && level.isEnabled) {
+          lightThreshold = level.speedOverLimitThreshold;
+          duration = durationSec;
+        } else if (level.severityLevel === 'moderate' && level.isEnabled) {
+          moderateThreshold = level.speedOverLimitThreshold;
+        } else if (level.severityLevel === 'heavy' && level.isEnabled) {
+          heavyThreshold = level.speedOverLimitThreshold;
+        } else if (level.severityLevel === 'severe' && level.isEnabled) {
+          severeThreshold = level.speedOverLimitThreshold;
+        }
+      });
+    }
+    
+    return `
+      <div>
+        <p class="text-sm font-medium">Unit: <span class="font-normal">${speedingSettings.unit || '-'}</span></p>
+        <p class="text-sm font-medium mt-2">Duration: <span class="font-normal">${duration} seconds</span></p>
+        
+        <h5 class="font-medium mt-4 mb-2">Thresholds</h5>
+        <div class="grid grid-cols-4 gap-2">
+          <div class="bg-green-50 p-2 rounded">
+            <p class="text-xs text-gray-600">Light</p>
+            <p class="text-lg">${lightThreshold}</p>
+          </div>
+          <div class="bg-yellow-50 p-2 rounded">
+            <p class="text-xs text-gray-600">Moderate</p>
+            <p class="text-lg">${moderateThreshold}</p>
+          </div>
+          <div class="bg-orange-50 p-2 rounded">
+            <p class="text-xs text-gray-600">Heavy</p>
+            <p class="text-lg">${heavyThreshold}</p>
+          </div>
+          <div class="bg-red-50 p-2 rounded">
+            <p class="text-xs text-gray-600">Severe</p>
+            <p class="text-lg">${severeThreshold}</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Render all settings tables
+  function renderSettings() {
+    renderScoreWeights();
+    renderDetectionAlerts();
+    renderAudioAlerts();
+    renderHarshSensitivity();
+    renderSpeedingSettings();
+    updateSummaryCards();
+    
+    // Open first section by default
+    if (toggleSections.length > 0) {
+      const firstSection = toggleSections[0];
+      const targetId = firstSection.getAttribute('data-target');
+      const target = document.getElementById(targetId);
+      target.classList.add('open');
+      firstSection.querySelector('.toggle-icon').classList.add('rotate-180');
+    }
+  }
+  
+  // Helper to create a colored badge
+  function createBadge(value, isEnabled = true) {
+    if (value === undefined || value === null) return '-';
+    
+    let bgColor = 'bg-gray-100';
+    let textColor = 'text-gray-800';
+    
+    if (isEnabled === false) {
+      bgColor = 'bg-red-100';
+      textColor = 'text-red-800';
+      return `<span class="${bgColor} ${textColor} px-2 py-1 rounded-full text-xs font-medium">Disabled</span>`;
+    }
+    
+    if (typeof value === 'boolean') {
+      if (value) {
+        bgColor = 'bg-green-100';
+        textColor = 'text-green-800';
+        return `<span class="${bgColor} ${textColor} px-2 py-1 rounded-full text-xs font-medium">Enabled</span>`;
+      } else {
+        bgColor = 'bg-red-100';
+        textColor = 'text-red-800';
+        return `<span class="${bgColor} ${textColor} px-2 py-1 rounded-full text-xs font-medium">Disabled</span>`;
+      }
+    }
+    
+    return `<span class="${bgColor} ${textColor} px-2 py-1 rounded-full text-xs font-medium">${value}</span>`;
+  }
+  
+  // Update summary cards with aggregate data
+  function updateSummaryCards() {
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    // Safety Score Weights summary
+    let crashWeightSum = 0;
+    let harshAccelSum = 0;
+    let harshBrakeSum = 0;
+    let harshTurnSum = 0;
+    let inattentiveSum = 0;
+    let aiInattentiveSum = 0;
+    let speedingSum = 0;
+    
+    // Alert configurations summary
+    let rollingStopEnabled = 0;
+    let followingDistanceEnabled = 0;
+    let forwardCollisionEnabled = 0;
+    let distractedEnabled = 0;
+    
+    // Audio alerts summary
+    let followingAudioEnabled = 0;
+    let collisionAudioEnabled = 0;
+    let inattentiveAudioEnabled = 0;
+    let voiceCoachingEnabled = 0;
+    
+    // Harsh event sensitivity summary
+    let accelValues = [];
+    let brakeValues = [];
+    let turnValues = [];
+    
+    orgs.forEach(org => {
+      const config = org.settings.safetyScoreConfiguration;
+      if (config) {
+        crashWeightSum += config.crashWeight || 0;
+        harshAccelSum += config.harshAccelWeight || 0;
+        harshBrakeSum += config.harshBrakeWeight || 0;
+        harshTurnSum += config.harshTurnWeight || 0;
+        inattentiveSum += config.inattentiveDrivingWeight || 0;
+        aiInattentiveSum += config.aiInattentiveDrivingDetectionWeight || 0;
+        speedingSum += (
+          (config.lightSpeedingWeight || 0) + 
+          (config.moderateSpeedingWeight || 0) + 
+          (config.heavySpeedingWeight || 0) + 
+          (config.severeSpeedingWeight || 0)
+        );
+      }
+      
+      const s = org.settings;
+      if (s.rollingStopDetectionAlerts?.isEnabled) rollingStopEnabled++;
+      if (s.followingDistanceDetectionAlerts?.isEnabled) followingDistanceEnabled++;
+      if (s.forwardCollisionDetectionAlerts?.isEnabled) forwardCollisionEnabled++;
+      if (s.distractedDrivingDetectionAlerts?.isEnabled) distractedEnabled++;
+      
+      if (s.followingDistanceDetectionAlerts?.hasInCabAudioAlertsEnabled) followingAudioEnabled++;
+      if (s.forwardCollisionDetectionAlerts?.hasInCabAudioAlertsEnabled) collisionAudioEnabled++;
+      if (s.distractedDrivingDetectionAlerts?.inattentiveDrivingDetectionAlerts?.hasInCabAudioAlertsEnabled) inattentiveAudioEnabled++;
+      if (s.voiceCoaching?.isEnabled) voiceCoachingEnabled++;
+      
+      if (s.harshEventSensitivity?.harshAccelSensitivityGForce?.passenger) {
+        accelValues.push(parseFloat(s.harshEventSensitivity.harshAccelSensitivityGForce.passenger));
+        brakeValues.push(parseFloat(s.harshEventSensitivity.harshBrakeSensitivityGForce.passenger));
+        turnValues.push(parseFloat(s.harshEventSensitivity.harshTurnSensitivityGForce.passenger));
+      }
+    });
+    
+    // Calculate averages
+    const count = orgs.length;
+    document.getElementById('crash-weight-summary').textContent = (crashWeightSum / count).toFixed(1);
+    document.getElementById('harsh-weight-summary').textContent = ((harshAccelSum + harshBrakeSum + harshTurnSum) / (count * 3)).toFixed(1);
+    document.getElementById('inattentive-weight-summary').textContent = ((inattentiveSum + aiInattentiveSum) / (count * 2)).toFixed(1);
+    document.getElementById('speeding-weight-summary').textContent = (speedingSum / (count * 4)).toFixed(1);
+    
+    // Calculate percentages
+    document.getElementById('rolling-stop-summary').textContent = `${Math.round(rollingStopEnabled / count * 100)}%`;
+    document.getElementById('following-distance-summary').textContent = `${Math.round(followingDistanceEnabled / count * 100)}%`;
+    document.getElementById('collision-summary').textContent = `${Math.round(forwardCollisionEnabled / count * 100)}%`;
+    document.getElementById('distracted-summary').textContent = `${Math.round(distractedEnabled / count * 100)}%`;
+    
+    document.getElementById('audio-following-summary').textContent = `${Math.round(followingAudioEnabled / count * 100)}%`;
+    document.getElementById('audio-collision-summary').textContent = `${Math.round(collisionAudioEnabled / count * 100)}%`;
+    document.getElementById('audio-inattentive-summary').textContent = `${Math.round(inattentiveAudioEnabled / count * 100)}%`;
+    document.getElementById('voice-coaching-summary').textContent = `${Math.round(voiceCoachingEnabled / count * 100)}%`;
+    
+    // Calculate sensitivity averages
+    if (accelValues.length > 0) {
+      const accelAvg = accelValues.reduce((sum, val) => sum + val, 0) / accelValues.length;
+      const brakeAvg = brakeValues.reduce((sum, val) => sum + val, 0) / brakeValues.length;
+      const turnAvg = turnValues.reduce((sum, val) => sum + val, 0) / turnValues.length;
+      
+      document.getElementById('accel-sensitivity-summary').textContent = accelAvg.toFixed(2) + 'g';
+      document.getElementById('brake-sensitivity-summary').textContent = brakeAvg.toFixed(2) + 'g';
+      document.getElementById('turn-sensitivity-summary').textContent = turnAvg.toFixed(2) + 'g';
+    }
+  }
+  
+  // Render Score Weights Table
+  function renderScoreWeights() {
+    const tableBody = document.getElementById('score-weights-body');
+    tableBody.innerHTML = '';
+    
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    orgs.forEach(org => {
+      const row = document.createElement('tr');
+      const config = org.settings.safetyScoreConfiguration;
+      
+      // Organization name (sticky first column)
+      row.innerHTML = `<td class="sticky left-0 bg-white font-medium">${org.name}</td>`;
+      
+      // Add columns for each weight
+      row.innerHTML += `
+        <td>${config.crashWeight || 0}</td>
+        <td>${config.harshAccelWeight || 0}</td>
+        <td>${config.harshBrakeWeight || 0}</td>
+        <td>${config.harshTurnWeight || 0}</td>
+        <td>${config.inattentiveDrivingWeight || 0}</td>
+        <td>${config.aiInattentiveDrivingDetectionWeight || 0}</td>
+        <td>${config.followingDistanceWeight || 0}</td>
+        <td>${(config.lightSpeedingWeight || 0) + (config.moderateSpeedingWeight || 0) + 
+          (config.heavySpeedingWeight || 0) + (config.severeSpeedingWeight || 0)}</td>
+        <td>${config.rollingStopWeight || 0}</td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+  }
+  
+  // Render Detection Alerts Table
+  function renderDetectionAlerts() {
+    const tableBody = document.getElementById('detection-alerts-body');
+    tableBody.innerHTML = '';
+    
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    orgs.forEach(org => {
+      const row = document.createElement('tr');
+      const s = org.settings;
+      
+      // Organization name (sticky first column)
+      row.innerHTML = `<td class="sticky left-0 bg-white font-medium">${org.name}</td>`;
+      
+      // Add columns for each alert type
+      row.innerHTML += `
+        <td>${createBadge(s.rollingStopDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.followingDistanceDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.forwardCollisionDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.distractedDrivingDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.distractedDrivingDetectionAlerts?.inattentiveDrivingDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.distractedDrivingDetectionAlerts?.mobileUsageDetectionAlerts?.isEnabled)}</td>
+        <td>${createBadge(s.policyViolationsDetectionAlerts?.isEnabled)}</td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+  }
+  
+  // Render Audio Alerts Table
+  function renderAudioAlerts() {
+    const tableBody = document.getElementById('audio-alerts-body');
+    tableBody.innerHTML = '';
+    
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    orgs.forEach(org => {
+      const row = document.createElement('tr');
+      const s = org.settings;
+      
+      // Organization name (sticky first column)
+      row.innerHTML = `<td class="sticky left-0 bg-white font-medium">${org.name}</td>`;
+      
+      // Voice coaching events
+      let coachingEvents = '';
+      if (s.voiceCoaching?.eventsToCoach?.length > 0) {
+        coachingEvents = s.voiceCoaching.eventsToCoach.join(', ');
+      }
+      
+      // Add columns for each audio alert type
+      row.innerHTML += `
+        <td>${createBadge(s.followingDistanceDetectionAlerts?.hasInCabAudioAlertsEnabled)}</td>
+        <td>${createBadge(s.forwardCollisionDetectionAlerts?.hasInCabAudioAlertsEnabled)}</td>
+        <td>${createBadge(s.distractedDrivingDetectionAlerts?.inattentiveDrivingDetectionAlerts?.hasInCabAudioAlertsEnabled)}</td>
+        <td>${createBadge(s.policyViolationsDetectionAlerts?.hasInCabAudioAlertsEnabled)}</td>
+        <td>${createBadge(s.voiceCoaching?.isEnabled)}</td>
+        <td>${coachingEvents || '-'}</td>
+      `;tableBody.appendChild(row);
+    });
+  }
+  
+  // Render Harsh Sensitivity Table
+  function renderHarshSensitivity() {
+    const tableBody = document.getElementById('harsh-sensitivity-body');
+    tableBody.innerHTML = '';
+    
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    orgs.forEach(org => {
+      const row = document.createElement('tr');
+      const s = org.settings;
+      const sensitivity = s.harshEventSensitivity;
+      
+      // Organization name (sticky first column)
+      row.innerHTML = `<td class="sticky left-0 bg-white font-medium">${org.name}</td>`;
+      
+      // Check if we have sensitivity data
+      if (!sensitivity) {
+        row.innerHTML += '<td colspan="9">No sensitivity data available</td>';
+        tableBody.appendChild(row);
+        return;
+      }
+      
+      // Add columns for each sensitivity value
+      row.innerHTML += `
+        <td>${sensitivity.harshAccelSensitivityGForce?.passenger || '-'}</td>
+        <td>${sensitivity.harshAccelSensitivityGForce?.lightDuty || '-'}</td>
+        <td>${sensitivity.harshAccelSensitivityGForce?.heavyDuty || '-'}</td>
+        <td>${sensitivity.harshBrakeSensitivityGForce?.passenger || '-'}</td>
+        <td>${sensitivity.harshBrakeSensitivityGForce?.lightDuty || '-'}</td>
+        <td>${sensitivity.harshBrakeSensitivityGForce?.heavyDuty || '-'}</td>
+        <td>${sensitivity.harshTurnSensitivityGForce?.passenger || '-'}</td>
+        <td>${sensitivity.harshTurnSensitivityGForce?.lightDuty || '-'}</td>
+        <td>${sensitivity.harshTurnSensitivityGForce?.heavyDuty || '-'}</td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+  }
+  
+  // Render Speeding Settings Table
+  function renderSpeedingSettings() {
+    const tableBody = document.getElementById('speeding-settings-body');
+    tableBody.innerHTML = '';
+    
+    const orgs = Object.values(orgSettings);
+    if (orgs.length === 0) return;
+    
+    orgs.forEach(org => {
+      const row = document.createElement('tr');
+      const speedingSettings = org.settings.speedingSettings;
+      
+      // Organization name (sticky first column)
+      row.innerHTML = `<td class="sticky left-0 bg-white font-medium">${org.name}</td>`;
+      
+      // Check if we have speeding settings
+      if (!speedingSettings) {
+        row.innerHTML += '<td colspan="6">No speeding settings available</td>';
+        tableBody.appendChild(row);
+        return;
+      }
+      
+      // Find threshold values for each severity level
+      let lightThreshold = '-';
+      let moderateThreshold = '-';
+      let heavyThreshold = '-';
+      let severeThreshold = '-';
+      let duration = '-';
+      
+      if (speedingSettings.severityLevels) {
+        speedingSettings.severityLevels.forEach(level => {
+          const durationSec = level.durationMs ? (level.durationMs / 1000) : '-';
+          
+          if (level.severityLevel === 'light' && level.isEnabled) {
+            lightThreshold = level.speedOverLimitThreshold;
+            duration = durationSec;
+          } else if (level.severityLevel === 'moderate' && level.isEnabled) {
+            moderateThreshold = level.speedOverLimitThreshold;
+          } else if (level.severityLevel === 'heavy' && level.isEnabled) {
+            heavyThreshold = level.speedOverLimitThreshold;
+          } else if (level.severityLevel === 'severe' && level.isEnabled) {
+            severeThreshold = level.speedOverLimitThreshold;
+          }
+        });
+      }
+      
+      // Add columns for speeding settings
+      row.innerHTML += `
+        <td>${speedingSettings.unit || '-'}</td>
+        <td>${lightThreshold}</td>
+        <td>${moderateThreshold}</td>
+        <td>${heavyThreshold}</td>
+        <td>${severeThreshold}</td>
+        <td>${duration}</td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+  }
+  
+  // Initialize the page
+  updateSelectedOrgs();
+});
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

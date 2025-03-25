@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration Management{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="py-8">
+        <h1 class="text-3xl font-bold text-gray-900">Configuration Management</h1>
+        <p class="mt-2 text-lg text-gray-600">Update system configuration settings.</p>
+    </div>
+
+    {% if success %}
+    <div class="mb-6 bg-green-100 border-l-4 border-green-500 text-green-700 p-4" role="alert">
+        <p>{{ success }}</p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
+
+    <form action="{{ url_for('save_config') }}" method="post" class="space-y-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <!-- API Configuration Section -->
+        <div class="bg-white shadow overflow-hidden rounded-lg">
+            <div class="px-4 py-5 sm:px-6 bg-gray-50">
+                <h3 class="text-lg font-medium leading-6 text-gray-900">API Configuration</h3>
+                <p class="mt-1 text-sm text-gray-500">Samsara API credentials and settings.</p>
+                <p class="mt-1 text-sm text-red-500 font-semibold">All API fields can be left blank to disable a region. No validation is performed on these fields.</p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+                <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                    <!-- EU Samsara API Configuration -->
+                    <div class="sm:col-span-6">
+                        <h4 class="text-md font-medium text-gray-700">EU Region API Settings</h4>
+                        <p class="text-xs text-gray-500">All fields can be left blank to disable this region</p>
+                    </div>
+                    
+                    <div class="sm:col-span-3">
+                        <label for="client_id" class="block text-sm font-bold text-gray-900">Client ID</label>
+                        <div class="mt-1">
+                            <input type="text" name="client_id" id="client_id" value="{{ config.CLIENT_ID }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="client_secret" class="block text-sm font-bold text-gray-900">Client Secret</label>
+                        <div class="mt-1">
+                            <input type="text" name="client_secret" id="client_secret" value="{{ config.CLIENT_SECRET }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="redirect_uri" class="block text-sm font-bold text-gray-900">Redirect URI</label>
+                        <div class="mt-1">
+                            <input type="text" name="redirect_uri" id="redirect_uri" value="{{ config.REDIRECT_URI }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="auth_url" class="block text-sm font-bold text-gray-900">Auth URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="auth_url" id="auth_url" value="{{ config.AUTH_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="token_url" class="block text-sm font-bold text-gray-900">Token URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="token_url" id="token_url" value="{{ config.TOKEN_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="me_url" class="block text-sm font-bold text-gray-900">ME URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="me_url" id="me_url" value="{{ config.ME_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-blue-50">
+                        </div>
+                    </div>
+
+                    <!-- US Samsara API Configuration -->
+                    <div class="sm:col-span-6 pt-4 border-t border-gray-200">
+                        <h4 class="text-md font-medium text-gray-700">US Region API Settings</h4>
+                        <p class="text-xs text-gray-500">All fields can be left blank to disable this region</p>
+                    </div>
+                    
+                    <div class="sm:col-span-3">
+                        <label for="us_client_id" class="block text-sm font-bold text-gray-900">US Client ID</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_client_id" id="us_client_id" value="{{ config.US_CLIENT_ID }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="us_client_secret" class="block text-sm font-bold text-gray-900">US Client Secret</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_client_secret" id="us_client_secret" value="{{ config.US_CLIENT_SECRET }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="us_redirect_uri" class="block text-sm font-bold text-gray-900">US Redirect URI</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_redirect_uri" id="us_redirect_uri" value="{{ config.US_REDIRECT_URI }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="us_auth_url" class="block text-sm font-bold text-gray-900">US Auth URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_auth_url" id="us_auth_url" value="{{ config.US_AUTH_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="us_token_url" class="block text-sm font-bold text-gray-900">US Token URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_token_url" id="us_token_url" value="{{ config.US_TOKEN_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="us_me_url" class="block text-sm font-bold text-gray-900">US ME URL</label>
+                        <div class="mt-1">
+                            <input type="text" name="us_me_url" id="us_me_url" value="{{ config.US_ME_URL }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-yellow-50">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+<!-- Email Configuration Section -->
+<div class="bg-white shadow overflow-hidden rounded-lg">
+    <div class="px-4 py-5 sm:px-6 bg-gray-50">
+        <h3 class="text-lg font-medium leading-6 text-gray-900">Email Configuration</h3>
+        <p class="mt-1 text-sm text-gray-500">Email server settings for notifications.</p>
+        <p class="mt-1 text-sm text-red-500 font-semibold">These fields can be left blank to disable email functionality, including password reset.</p>
+    </div>
+    <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div class="sm:col-span-3">
+                <label for="email_sender" class="block text-sm font-bold text-gray-900">Email Sender</label>
+                <div class="mt-1">
+                    <input type="email" name="email_sender" id="email_sender" value="{{ config.EMAIL_SENDER }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-green-50">
+                </div>
+            </div>
+
+            <div class="sm:col-span-3">
+                <label for="smtp_server" class="block text-sm font-bold text-gray-900">SMTP Server</label>
+                <div class="mt-1">
+                    <input type="text" name="smtp_server" id="smtp_server" value="{{ config.SMTP_SERVER }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-green-50">
+                </div>
+            </div>
+
+            <div class="sm:col-span-2">
+                <label for="smtp_port" class="block text-sm font-bold text-gray-900">SMTP Port</label>
+                <div class="mt-1">
+                    <input type="number" name="smtp_port" id="smtp_port" value="{{ config.SMTP_PORT }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-green-50">
+                </div>
+            </div>
+
+            <div class="sm:col-span-2">
+                <label for="smtp_username" class="block text-sm font-bold text-gray-900">SMTP Username</label>
+                <div class="mt-1">
+                    <input type="text" name="smtp_username" id="smtp_username" value="{{ config.SMTP_USERNAME }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-green-50">
+                </div>
+            </div>
+
+            <div class="sm:col-span-2">
+                <label for="smtp_password" class="block text-sm font-bold text-gray-900">SMTP Password</label>
+                <div class="mt-1">
+                    <input type="text" name="smtp_password" id="smtp_password" value="{{ config.SMTP_PASSWORD }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-green-50">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+        <!-- Admin Configuration Section -->
+        <div class="bg-white shadow overflow-hidden rounded-lg">
+            <div class="px-4 py-5 sm:px-6 bg-gray-50">
+                <h3 class="text-lg font-medium leading-6 text-gray-900">Admin Configuration</h3>
+                <p class="mt-1 text-sm text-gray-500">Default admin credentials.</p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+                <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                    <div class="sm:col-span-3">
+                        <label for="admin_username" class="block text-sm font-bold text-gray-900">Admin Username</label>
+                        <div class="mt-1">
+                            <input type="text" name="admin_username" id="admin_username" value="{{ config.ADMIN_USERNAME }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-purple-50">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label for="admin_password" class="block text-sm font-bold text-gray-900">Admin Password</label>
+                        <div class="mt-1">
+                            <input type="text" name="admin_password" id="admin_password" value="{{ config.ADMIN_PASSWORD }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-purple-50">
+                            <p class="mt-1 text-xs text-gray-500">Leave blank to keep current password</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flask Configuration Section -->
+        <div class="bg-white shadow overflow-hidden rounded-lg">
+            <div class="px-4 py-5 sm:px-6 bg-gray-50">
+                <h3 class="text-lg font-medium leading-6 text-gray-900">Flask Configuration</h3>
+                <p class="mt-1 text-sm text-gray-500">Flask app settings.</p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+                <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                    <div class="sm:col-span-3">
+                        <label for="secret_key" class="block text-sm font-bold text-gray-900">Secret Key</label>
+                        <div class="mt-1">
+                            <input type="text" name="secret_key" id="secret_key" value="{{ config.SECRET_KEY }}" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md bg-red-50">
+                        </div>
+                    </div>
+                    
+                    <div class="sm:col-span-3">
+                        <label for="generate_secret_key" class="block text-sm font-medium text-gray-700">Generate New Secret Key</label>
+                        <div class="mt-2">
+                            <button type="button" id="generate_secret_key_btn" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                Generate Random Key
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="pt-5 flex justify-between">
+            <div>
+                <button type="button" id="restartService" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <svg class="mr-2 -ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Restart Service
+                </button>
+            </div>
+            <div>
+                <button type="button" onclick="window.location.href='{{ url_for('admin') }}'" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmSubmit()" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Save
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirmModal" class="fixed z-10 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                            Confirm Configuration Changes
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500">
+                                You are about to update system configuration settings. This action may require a system restart to take effect fully. Are you sure you want to proceed?
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" id="confirmSave" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Confirm
+                </button>
+                <button type="button" id="cancelSave" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restart Service Confirmation Modal -->
+<div id="restartModal" class="fixed z-10 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                            Restart Service
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500">
+                                You are about to restart the samsara-partner service. This will temporarily interrupt service while the application restarts. Are you sure you want to proceed?
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" id="confirmRestart" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Restart
+                </button>
+                <button type="button" id="cancelRestart" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restart Status Modal -->
+<div id="restartStatusModal" class="fixed z-10 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div id="restartStatusIcon" class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-blue-600 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="restartStatusTitle">
+                            Restarting Service
+                        </h3>
+                        <div class="mt-2">
+                            <p id="restartStatusMessage" class="text-sm text-gray-500">
+                                The samsara-partner service is restarting. This may take a few moments...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" id="closeRestartStatus" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Function to generate random secure key
+    function generateRandomKey() {
+        const length = 32;
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.getElementById('secret_key').value = result;
+    }
+
+    // Add event listener to the generate button
+    document.getElementById('generate_secret_key_btn').addEventListener('click', generateRandomKey);
+
+    // Show confirmation modal
+    function confirmSubmit() {
+        document.getElementById('confirmModal').classList.remove('hidden');
+    }
+
+    // Handle confirm button click
+    document.getElementById('confirmSave').addEventListener('click', function() {
+        document.querySelector('form').submit();
+    });
+
+    // Handle cancel button click
+    document.getElementById('cancelSave').addEventListener('click', function() {
+        document.getElementById('confirmModal').classList.add('hidden');
+    });
+
+    // Restart Service functionality
+    document.getElementById('restartService').addEventListener('click', function() {
+        document.getElementById('restartModal').classList.remove('hidden');
+    });
+
+    document.getElementById('cancelRestart').addEventListener('click', function() {
+        document.getElementById('restartModal').classList.add('hidden');
+    });
+
+    document.getElementById('confirmRestart').addEventListener('click', function() {
+        // Hide restart confirmation modal
+        document.getElementById('restartModal').classList.add('hidden');
+        
+        // Show restart status modal
+        document.getElementById('restartStatusModal').classList.remove('hidden');
+        
+        // Make API call to restart service
+        fetch('/admin/config/restart-service', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Update status icon and message
+            const statusIcon = document.getElementById('restartStatusIcon');
+            const statusTitle = document.getElementById('restartStatusTitle');
+            const statusMessage = document.getElementById('restartStatusMessage');
+            
+            if (data.success) {
+                // Show success icon
+                statusIcon.innerHTML = '<svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+                statusIcon.classList.remove('bg-blue-100');
+                statusIcon.classList.add('bg-green-100');
+                
+                // Update title and message
+                statusTitle.textContent = 'Service Restarted Successfully';
+                statusMessage.textContent = 'The samsara-partner service has been restarted successfully. Changes to configuration should now take effect.';
+            } else {
+                // Show error icon
+                statusIcon.innerHTML = '<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+                statusIcon.classList.remove('bg-blue-100');
+                statusIcon.classList.add('bg-red-100');
+                
+                // Update title and message
+                statusTitle.textContent = 'Restart Failed';
+                statusMessage.textContent = data.message || 'An error occurred while restarting the service. Please try again or check server logs.';
+            }
+        })
+        .catch(error => {
+            // Show error icon
+            const statusIcon = document.getElementById('restartStatusIcon');
+            const statusTitle = document.getElementById('restartStatusTitle');
+            const statusMessage = document.getElementById('restartStatusMessage');
+            
+            statusIcon.innerHTML = '<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+            statusIcon.classList.remove('bg-blue-100');
+            statusIcon.classList.add('bg-red-100');
+            
+            // Update title and message
+            statusTitle.textContent = 'Connection Error';
+            statusMessage.textContent = 'Failed to connect to the server. This may indicate the service has restarted or there is a network issue.';
+        });
+    });
+
+    // Close restart status modal
+    document.getElementById('closeRestartStatus').addEventListener('click', function() {
+        document.getElementById('restartStatusModal').classList.add('hidden');
+    });
+</script>
+{% endblock %}

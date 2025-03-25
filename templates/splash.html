@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Samsara Safety Data Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'koncept-blue': '#2B4695',
+                        'koncept-light-blue': '#4B7BDD'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-3xl mx-4">
+        <div class="bg-[#d2e6f7] rounded-xl shadow-lg p-8">
+
+            <div class="flex items-center justify-center mb-2">
+                <img src="/static/images/SamsaraDev.png" alt="Samsara Logo" class="h-14 mr-4">
+                <h1 class="text-4xl font-bold text-koncept-blue">
+                    Safety Data Hub
+                </h1>
+            </div>
+
+            <!-- Blue Header Bar -->
+            <div class="bg-koncept-blue text-white text-2xl font-semibold py-4 px-6 rounded-lg my-8 text-center">
+                Connect your Samsara Dashboard
+            </div>
+
+            <p class="text-gray-600 text-xl text-center mb-12">
+                Please authenticate with your Samsara account to share Safety Data.
+            </p>
+
+            <div class="space-y-6">
+                <div class="flex flex-col items-center">
+                    <div class="w-full max-w-xs">
+                        <select id="regionSelect" 
+                                onchange="handleRegionChange()"
+                                class="w-full p-3 border border-gray-300 rounded-md text-gray-700 focus:ring-koncept-blue focus:border-koncept-blue">
+                            <option value="" selected>Select Region</option>
+                            <!-- Server-side rendered options (as fallback) -->
+                            {% if us_config_valid %}
+                            <option value="us">United States</option>
+                            {% endif %}
+                            {% if eu_config_valid %}
+                            <option value="emea">EMEA</option>
+                            {% endif %}
+                        </select>
+                        
+                        <!-- Show error if no configurations are valid -->
+                        {% if not eu_config_valid and not us_config_valid %}
+                        <div id="regionError" class="mt-4 text-center text-red-600">
+                            No regions are currently configured. Please contact system administrator.
+                        </div>
+                        {% else %}
+                        <div id="regionError" class="mt-4 text-center text-red-600 hidden">
+                            No regions are currently configured. Please contact system administrator.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <form id="connectForm" 
+                      action="{{ url_for('start_auth') }}" 
+                      method="post" 
+                      class="hidden text-center">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="region" id="regionInput">
+                    <button type="submit" 
+                            class="w-full max-w-xs px-8 py-4 bg-koncept-blue text-white text-xl rounded-full hover:bg-koncept-light-blue transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-koncept-blue focus:ring-offset-2">
+                        Login with Samsara
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Check region configuration status on page load - use API for real-time updates
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/region-config-status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const regionSelect = document.getElementById('regionSelect');
+                    const regionError = document.getElementById('regionError');
+                    
+                    console.log('API response:', data);
+                    
+                    // Clear any existing options except the default
+                    while (regionSelect.options.length > 1) {
+                        regionSelect.remove(1);
+                    }
+                    
+                    // Add US option if configured
+                    if (data.us_config_complete) {
+                        const usOption = document.createElement('option');
+                        usOption.value = 'us';
+                        usOption.textContent = 'United States';
+                        regionSelect.appendChild(usOption);
+                    }
+                    
+                    // Add EU/EMEA option if configured
+                    if (data.eu_config_complete) {
+                        const euOption = document.createElement('option');
+                        euOption.value = 'emea';
+                        euOption.textContent = 'EMEA';
+                        regionSelect.appendChild(euOption);
+                    }
+                    
+                    // Show error if no regions are configured
+                    if (!data.us_config_complete && !data.eu_config_complete) {
+                        regionError.classList.remove('hidden');
+                    } else {
+                        regionError.classList.add('hidden');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching region configuration status:', error);
+                    // In case of API error, rely on server-side rendering
+                    // The server-side options will remain as rendered
+                });
+        });
+
+        function handleRegionChange() {
+            const regionSelect = document.getElementById('regionSelect');
+            const connectForm = document.getElementById('connectForm');
+            const regionInput = document.getElementById('regionInput');
+            
+            if (regionSelect.value) {
+                connectForm.classList.remove('hidden');
+                regionInput.value = regionSelect.value;
+            } else {
+                connectForm.classList.add('hidden');
+            }
+        }
+
+        // Initialize form visibility on page load
+        window.onload = function() {
+            const regionSelect = document.getElementById('regionSelect');
+            regionSelect.value = '';
+            const connectForm = document.getElementById('connectForm');
+            connectForm.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

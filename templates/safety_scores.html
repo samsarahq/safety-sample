@@ -1,0 +1,814 @@
+{% extends "base.html" %}
+
+{% block title %}Driver Safety Scores{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top-color: #3498db;
+        animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .score-badge {
+        display: inline-block;
+        min-width: 60px;
+        text-align: center;
+        padding: 4px 8px;
+        border-radius: 9999px;
+        font-weight: bold;
+    }
+
+    .excellent {
+        background-color: #10B981;
+        color: white;
+    }
+
+    .good {
+        background-color: #3B82F6;
+        color: white;
+    }
+
+    .fair {
+        background-color: #F59E0B;
+        color: white;
+    }
+
+    .poor {
+        background-color: #EF4444;
+        color: white;
+    }
+
+    .dashboard-card {
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Driver Safety Scores</h1>
+        <p class="mt-2 text-sm text-gray-500">Track and analyze driver safety metrics across your fleet</p>
+    </header>
+
+    <!-- Filter and Controls Section -->
+    <div class="bg-white shadow rounded-lg p-6 mb-8">
+        <form id="filters-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+                <label for="org-select" class="block text-sm font-medium text-gray-700 mb-1">Organizations</label>
+                <select id="org-select" multiple class="select2-multiple w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    {% for org in organizations %}
+                    <option value="{{ org.org_id }}">{{ org.org_name }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Click to select multiple organizations</p>
+            </div>
+            <div>
+                <label for="date-range" class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="start-date" placeholder="Start Date" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="end-date" placeholder="End Date" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <div class="flex items-end">
+                <button type="button" id="fetch-data" class="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Get Driver Safety Data
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="hidden text-center py-8">
+        <div class="loading"></div>
+        <p class="mt-2 text-sm text-gray-500">Loading safety data...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error-message" class="hidden bg-red-50 border-l-4 border-red-400 p-4 mb-8">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-red-700" id="error-text"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Empty State Message -->
+    <div id="empty-state" class="hidden bg-white shadow rounded-lg p-8 text-center mb-8">
+        <svg class="h-16 w-16 text-gray-400 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No Driver Safety Data</h3>
+        <p class="text-gray-500 mb-4">There are no safety scores available for the selected criteria. This could be because:</p>
+        <ul class="text-gray-500 text-left mx-auto max-w-md mb-6 list-disc list-inside">
+            <li>No drivers have recorded safety events in the selected date range</li>
+            <li>The organization's drivers aren't using compatible devices</li>
+            <li>Safety features may not be enabled for this organization</li>
+        </ul>
+        <p class="text-gray-500">Try adjusting your filters or selecting a different date range.</p>
+    </div>
+
+    <!-- Dashboard Summary Cards -->
+    <div id="summary-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 hidden">
+        <div class="dashboard-card bg-white shadow rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-500">Average Safety Score</h3>
+            <p class="mt-1 text-3xl font-semibold text-gray-900" id="avg-safety-score">--</p>
+            <div class="mt-1 flex items-center text-sm">
+                <span class="text-gray-500">Across all drivers</span>
+            </div>
+        </div>
+        <div class="dashboard-card bg-white shadow rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-500">Total Harsh Events</h3>
+            <p class="mt-1 text-3xl font-semibold text-gray-900" id="total-harsh-events">--</p>
+            <div class="mt-1 flex items-center text-sm">
+                <span class="text-gray-500">Combined across fleet</span>
+            </div>
+        </div>
+        <div class="dashboard-card bg-white shadow rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-500">Total Distance Driven</h3>
+            <p class="mt-1 text-3xl font-semibold text-gray-900" id="total-distance">--</p>
+            <div class="mt-1 flex items-center text-sm">
+                <span class="text-gray-500">Kilometers</span>
+            </div>
+        </div>
+        <div class="dashboard-card bg-white shadow rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-500">Total Driving Time</h3>
+            <p class="mt-1 text-3xl font-semibold text-gray-900" id="total-driving-time">--</p>
+            <div class="mt-1 flex items-center text-sm">
+                <span class="text-gray-500">Hours</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div id="charts-section" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 hidden">
+        <div class="bg-white shadow rounded-lg p-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Safety Score Distribution</h3>
+            <div class="h-64">
+                <canvas id="score-distribution-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Harsh Event Types</h3>
+            <div class="h-64">
+                <canvas id="event-types-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white shadow rounded-lg overflow-hidden hidden" id="data-table-container">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Driver Safety Details</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Detailed information about each driver's safety metrics.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Driver
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Safety Score
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Rank
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Harsh Events
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Distance (km)
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="safety-data-table" class="bg-white divide-y divide-gray-200">
+                    <!-- Table rows will be populated via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                <button id="mobile-prev-page" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </button>
+                <button id="mobile-next-page" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                </button>
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span id="page-start">1</span> to <span id="page-end">10</span> of <span id="total-results">-</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <button id="prev-page" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <span class="sr-only">Previous</span>
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="pagination-numbers" class="flex">
+                            <!-- Pagination numbers will be populated via JavaScript -->
+                        </div>
+                        <button id="next-page" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <span class="sr-only">Next</span>
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Driver Details Modal -->
+    <div id="driver-modal" class="fixed inset-0 z-10 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                                Driver Details
+                            </h3>
+                            <div class="mt-2">
+                                <div id="driver-details-content" class="text-sm text-gray-500">
+                                    <!-- Driver details will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="close-modal" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Select2
+        $(document).ready(function() {
+            $('#org-select').select2({
+                placeholder: 'Select organizations',
+                allowClear: true,
+                width: '100%'
+            });
+        });
+
+        // Initialize date pickers with default 30 day lookback
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        flatpickr("#start-date", {
+            dateFormat: "Y-m-d",
+            defaultDate: thirtyDaysAgo
+        });
+        
+        flatpickr("#end-date", {
+            dateFormat: "Y-m-d",
+            defaultDate: today
+        });
+
+        // Variables for pagination
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let allDriverData = [];
+        let filteredDriverData = [];
+
+        // Charts
+        let scoreDistributionChart = null;
+        let eventTypesChart = null;
+
+        // Get Data button click
+        document.getElementById('fetch-data').addEventListener('click', function() {
+            fetchSafetyData();
+        });
+
+        // Function to fetch driver safety data
+        function fetchSafetyData() {
+            // Get selected organizations using Select2
+            const selectedOrgs = $('#org-select').val() || [];
+            
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            // Disable the Get Data button and show loading text
+            const fetchButton = document.getElementById('fetch-data');
+            const originalButtonText = fetchButton.textContent;
+            fetchButton.disabled = true;
+            fetchButton.textContent = 'Retrieving Data...';
+
+            if (!startDate || !endDate) {
+                showError("Please select a date range");
+                return;
+            }
+            
+            // Hide any previous error
+            hideError();
+
+            // Show loading, hide error and data sections
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('summary-cards').classList.add('hidden');
+            document.getElementById('charts-section').classList.add('hidden');
+            document.getElementById('data-table-container').classList.add('hidden');
+
+            // API request with multiple org IDs
+            const orgParam = selectedOrgs.length > 0 ? `orgs=${selectedOrgs.join(',')}` : '';
+            fetch(`/api/safety-scores?${orgParam}&start_date=${startDate}&end_date=${endDate}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading
+                    document.getElementById('loading').classList.add('hidden');
+                    
+                    // Re-enable the Get Data button
+                    const fetchButton = document.getElementById('fetch-data');
+                    fetchButton.disabled = false;
+                    fetchButton.textContent = 'Get Driver Safety Data';
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    // Store all driver data
+                    allDriverData = data.drivers || [];
+                    
+                    // No score filtering anymore - use all data
+                    filteredDriverData = allDriverData;
+
+                    // Show data sections if we have data
+                    if (filteredDriverData.length > 0) {
+                        // Hide empty state if shown
+                        document.getElementById('empty-state').classList.add('hidden');
+                        
+                        document.getElementById('summary-cards').classList.remove('hidden');
+                        document.getElementById('charts-section').classList.remove('hidden');
+                        document.getElementById('data-table-container').classList.remove('hidden');
+                        
+                        // Update summary cards
+                        updateSummaryCards(data.summary);
+                        
+                        // Update charts
+                        updateCharts(filteredDriverData);
+                        
+                        // Reset to first page and update table
+                        currentPage = 1;
+                        updateTableData();
+                    } else {
+                        // Show empty state instead of error for no data
+                        document.getElementById('empty-state').classList.remove('hidden');
+                        document.getElementById('summary-cards').classList.add('hidden');
+                        document.getElementById('charts-section').classList.add('hidden');
+                        document.getElementById('data-table-container').classList.add('hidden');
+                        
+                        // Still show summary cards if they're available
+                        if (data.summary && typeof data.summary.avgSafetyScore !== 'undefined') {
+                            document.getElementById('summary-cards').classList.remove('hidden');
+                            updateSummaryCards(data.summary);
+                        }
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loading').classList.add('hidden');
+                    
+                    // Re-enable the Get Data button
+                    const fetchButton = document.getElementById('fetch-data');
+                    fetchButton.disabled = false;
+                    fetchButton.textContent = 'Get Driver Safety Data';
+                    
+                    showError(`Error fetching safety data: ${error.message}`);
+                    console.error('Error:', error);
+                });
+        }
+
+        // Function to show error message
+        function showError(message) {
+            const errorElement = document.getElementById('error-message');
+            document.getElementById('error-text').textContent = message;
+            errorElement.classList.remove('hidden');
+        }
+        
+        // Function to hide error message
+        function hideError() {
+            document.getElementById('error-message').classList.add('hidden');
+        }
+
+        // Function to update summary cards
+        function updateSummaryCards(summary) {
+            document.getElementById('avg-safety-score').textContent = summary.avgSafetyScore.toFixed(1);
+            document.getElementById('total-harsh-events').textContent = summary.totalHarshEvents.toLocaleString();
+            document.getElementById('total-distance').textContent = (summary.totalDistanceDrivenMeters / 1000).toLocaleString();
+            
+            // Convert milliseconds to hours
+            const totalHours = Math.round(summary.totalTimeDrivenMs / (1000 * 60 * 60));
+            document.getElementById('total-driving-time').textContent = totalHours.toLocaleString();
+        }
+
+        // Function to update charts
+        function updateCharts(driverData) {
+            // Prepare data for score distribution chart
+            const scoreRanges = {
+                '90-100': 0,
+                '80-89': 0,
+                '70-79': 0,
+                '60-69': 0,
+                'Below 60': 0
+            };
+
+            driverData.forEach(driver => {
+                const score = driver.safetyScore;
+                if (score >= 90) scoreRanges['90-100']++;
+                else if (score >= 80) scoreRanges['80-89']++;
+                else if (score >= 70) scoreRanges['70-79']++;
+                else if (score >= 60) scoreRanges['60-69']++;
+                else scoreRanges['Below 60']++;
+            });
+
+            // Prepare data for event types chart
+            const eventTypes = {
+                'Harsh Braking': 0,
+                'Harsh Acceleration': 0,
+                'Harsh Turning': 0,
+                'Crashes': 0
+            };
+
+            driverData.forEach(driver => {
+                eventTypes['Harsh Braking'] += driver.harshBrakingCount || 0;
+                eventTypes['Harsh Acceleration'] += driver.harshAccelCount || 0;
+                eventTypes['Harsh Turning'] += driver.harshTurningCount || 0;
+                eventTypes['Crashes'] += driver.crashCount || 0;
+            });
+
+            // Create/update score distribution chart
+            const scoreCtx = document.getElementById('score-distribution-chart').getContext('2d');
+            
+            if (scoreDistributionChart) {
+                scoreDistributionChart.destroy();
+            }
+            
+            scoreDistributionChart = new Chart(scoreCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(scoreRanges),
+                    datasets: [{
+                        label: 'Number of Drivers',
+                        data: Object.values(scoreRanges),
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.8)',  // Green (90-100)
+                            'rgba(59, 130, 246, 0.8)',  // Blue (80-89)
+                            'rgba(245, 158, 11, 0.8)',  // Yellow (70-79)
+                            'rgba(239, 68, 68, 0.7)',   // Red (60-69)
+                            'rgba(239, 68, 68, 0.9)'    // Darker Red (Below 60)
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Create/update event types chart
+            const eventCtx = document.getElementById('event-types-chart').getContext('2d');
+            
+            if (eventTypesChart) {
+                eventTypesChart.destroy();
+            }
+            
+            eventTypesChart = new Chart(eventCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(eventTypes),
+                    datasets: [{
+                        data: Object.values(eventTypes),
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.8)',   // Red (Harsh Braking)
+                            'rgba(245, 158, 11, 0.8)',  // Yellow (Harsh Acceleration)
+                            'rgba(59, 130, 246, 0.8)',  // Blue (Harsh Turning)
+                            'rgba(16, 16, 16, 0.8)'     // Black (Crashes)
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to update the data table with pagination
+        function updateTableData() {
+            const tableBody = document.getElementById('safety-data-table');
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredDriverData.length);
+            const pageData = filteredDriverData.slice(startIndex, endIndex);
+            
+            // Clear existing table rows
+            tableBody.innerHTML = '';
+            
+            // Add data rows
+            pageData.forEach(driver => {
+                const row = document.createElement('tr');
+                
+                // Determine score class
+                let scoreClass = '';
+                if (driver.safetyScore >= 90) scoreClass = 'excellent';
+                else if (driver.safetyScore >= 80) scoreClass = 'good';
+                else if (driver.safetyScore >= 70) scoreClass = 'fair';
+                else scoreClass = 'poor';
+                
+                // Calculate distance in kilometers
+                const distanceKm = (driver.totalDistanceDrivenMeters / 1000).toFixed(1);
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">${driver.driverName || 'Driver ' + driver.driverId}</div>
+                                <div class="text-xs text-gray-500">Org: ${driver.orgName}</div>
+                                <div class="text-xs text-gray-500">ID: ${driver.driverId}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="score-badge ${scoreClass}">${driver.safetyScore}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${driver.safetyScoreRank}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${driver.totalHarshEventCount}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${distanceKm}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="text-blue-600 hover:text-blue-900 view-details" data-driver-id="${driver.driverId}">View Details</button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Update pagination display
+            document.getElementById('page-start').textContent = filteredDriverData.length > 0 ? startIndex + 1 : 0;
+            document.getElementById('page-end').textContent = endIndex;
+            document.getElementById('total-results').textContent = filteredDriverData.length;
+            
+            // Update pagination numbers
+            updatePaginationNumbers();
+            
+            // Add event listeners to view details buttons
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', function() {
+                    const driverId = this.dataset.driverId;
+                    showDriverDetails(driverId);
+                });
+            });
+        }
+
+        // Function to update pagination numbers
+        function updatePaginationNumbers() {
+            const paginationContainer = document.getElementById('pagination-numbers');
+            paginationContainer.innerHTML = '';
+            
+            const totalPages = Math.ceil(filteredDriverData.length / itemsPerPage);
+            
+            // Only show a reasonable number of page links
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            // Adjust start page if we're near the end
+            if (endPage - startPage + 1 < maxVisiblePages && startPage > 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageLink = document.createElement('button');
+                pageLink.classList.add('relative', 'inline-flex', 'items-center', 'px-4', 'py-2', 'border', 'border-gray-300', 'bg-white', 'text-sm', 'font-medium');
+                
+                if (i === currentPage) {
+                    pageLink.classList.add('z-10', 'bg-blue-50', 'border-blue-500', 'text-blue-600');
+                } else {
+                    pageLink.classList.add('text-gray-500', 'hover:bg-gray-50');
+                }
+                
+                pageLink.textContent = i;
+                pageLink.addEventListener('click', function() {
+                    currentPage = i;
+                    updateTableData();
+                });
+                
+                paginationContainer.appendChild(pageLink);
+            }
+        }
+
+        // Previous and Next page buttons
+        document.getElementById('prev-page').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                updateTableData();
+            }
+        });
+        
+        document.getElementById('next-page').addEventListener('click', function() {
+            const totalPages = Math.ceil(filteredDriverData.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updateTableData();
+            }
+        });
+        
+        document.getElementById('mobile-prev-page').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                updateTableData();
+            }
+        });
+        
+        document.getElementById('mobile-next-page').addEventListener('click', function() {
+            const totalPages = Math.ceil(filteredDriverData.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updateTableData();
+            }
+        });
+
+        // Function to show driver details modal
+        function showDriverDetails(driverId) {
+            const driver = allDriverData.find(d => d.driverId.toString() === driverId.toString());
+            if (!driver) {
+                return;
+            }
+            
+            // Format driver details
+            const distanceKm = (driver.totalDistanceDrivenMeters / 1000).toFixed(1);
+            const drivingHours = (driver.totalTimeDrivenMs / (1000 * 60 * 60)).toFixed(1);
+            const speedingMinutes = (driver.timeOverSpeedLimitMs / (1000 * 60)).toFixed(1);
+            
+            // Build event details HTML
+            let eventDetailsHtml = '<p class="font-medium mt-3 mb-1">Recent Harsh Events:</p>';
+            if (driver.harshEvents && driver.harshEvents.length > 0) {
+                eventDetailsHtml += '<ul class="list-disc pl-5 text-sm">';
+                driver.harshEvents.forEach(event => {
+                    const date = new Date(event.timestampMs);
+                    eventDetailsHtml += `<li>${event.harshEventType} on ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}</li>`;
+                });
+                eventDetailsHtml += '</ul>';
+            } else {
+                eventDetailsHtml += '<p class="text-sm">No recent harsh events.</p>';
+            }
+            
+            // Update modal content
+            const modalContent = document.getElementById('driver-details-content');
+            modalContent.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-500">Driver ID</p>
+                        <p class="font-medium">${driver.driverId}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Organization</p>
+                        <p class="font-medium">${driver.orgName}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Safety Score</p>
+                        <p class="font-medium">${driver.safetyScore}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Rank</p>
+                        <p class="font-medium">${driver.safetyScoreRank}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Total Distance</p>
+                        <p class="font-medium">${distanceKm} km</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Driving Time</p>
+                        <p class="font-medium">${drivingHours} hours</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Time Over Speed Limit</p>
+                        <p class="font-medium">${speedingMinutes} minutes</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-100 p-3 rounded-md mb-3">
+                    <p class="font-medium mb-1">Harsh Event Breakdown:</p>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <span class="text-gray-600">Harsh Braking:</span>
+                            <span class="font-medium">${driver.harshBrakingCount || 0}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">Harsh Acceleration:</span>
+                            <span class="font-medium">${driver.harshAccelCount || 0}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">Harsh Turning:</span>
+                            <span class="font-medium">${driver.harshTurningCount || 0}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">Crashes:</span>
+                            <span class="font-medium">${driver.crashCount || 0}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                ${eventDetailsHtml}
+            `;
+            
+            // Show modal
+            document.getElementById('driver-modal').classList.remove('hidden');
+        }
+
+        // Close modal button
+        document.getElementById('close-modal').addEventListener('click', function() {
+            document.getElementById('driver-modal').classList.add('hidden');
+        });
+        
+        // Close modal when clicking backdrop
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('driver-modal');
+            const modalDialog = modal.querySelector('div > div > div');
+            
+            if (event.target === modal) {
+                modal.classList.add('hidden');
+            }
+        });
+
+        // Don't automatically fetch data on initial load
+        // Show a message to the user to click Get Data
+        showError("Please select your filters and click 'Get Driver Safety Data' to retrieve safety scores");
+    });
+</script>
+{% endblock %}

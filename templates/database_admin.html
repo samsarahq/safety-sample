@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Database Admin{% endblock %}
+
+{% block extra_head %}
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4);
+    }
+    
+    .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 50%;
+        border-radius: 0.5rem;
+    }
+    
+    .pagination-btn {
+        display: inline-block;
+        padding: 0.5rem;
+        margin: 0 0.25rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.25rem;
+        background-color: #fff;
+        color: #374151;
+        cursor: pointer;
+    }
+    
+    .pagination-btn.active {
+        background-color: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    
+    .pagination-btn.disabled {
+        color: #9ca3af;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="py-8">
+        <h1 class="text-3xl font-bold text-gray-900">Database Administration</h1>
+        <p class="mt-2 text-lg text-gray-600">View and manage database tables</p>
+    </div>
+
+    {% if error %}
+    <div class="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+        <strong class="font-bold">Error:</strong>
+        <span class="block sm:inline">{{ error }}</span>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+        <strong class="font-bold">Success:</strong>
+        <span class="block sm:inline">{{ success }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Database Statistics Section -->
+    <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
+        <div class="p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Database Statistics</h2>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Table Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Row Count
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for table_stat in table_stats %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ table_stat.name }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ table_stat.count }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 bg-gray-50 p-4 rounded-md">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm text-gray-600">
+                            <strong>Database File Size:</strong> {{ db_size }}
+                        </p>
+                        <p class="text-sm text-gray-600 mt-1">
+                            <strong>Database Path:</strong> {{ db_path }}
+                        </p>
+                    </div>
+                    <form action="{{ url_for('vacuum_database') }}" method="POST" class="ml-4">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            VACUUM Database
+                        </button>
+                    </form>
+                </div>
+                {% if vacuum_success %}
+                <div class="mt-3 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative" role="alert">
+                    <span class="block sm:inline">{{ vacuum_success }}</span>
+                </div>
+                {% endif %}
+                <p class="text-xs text-gray-500 mt-2">
+                    <em>Note: VACUUM rebuilds the database file, repacking it into a minimal amount of disk space and potentially improving performance.</em>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-1 gap-6 mb-8">
+        <!-- View Table Data Section -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">View Table Data</h2>
+                
+                <form id="viewTableForm" action="{{ url_for('database_admin') }}" method="GET" class="mb-4">
+                    <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                        <div class="w-full md:w-1/2">
+                            <label for="table" class="block text-sm font-medium text-gray-700 mb-1">Select Table</label>
+                            <select id="table" name="table" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">Select a table</option>
+                                {% for table_name in tables %}
+                                <option value="{{ table_name }}" {% if selected_table == table_name %}selected{% endif %}>{{ table_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="w-full md:w-1/4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">&nbsp;</label>
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                                View Data
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                {% if selected_table and table_data %}
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">{{ selected_table }} (Showing {{ table_data|length }} of {{ total_records }} records)</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    {% for column in columns %}
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        {{ column }}
+                                    </th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for row in table_data %}
+                                <tr>
+                                    {% for cell in row %}
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 overflow-hidden overflow-ellipsis max-w-xs">
+                                        {{ cell }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    {% if total_pages > 1 %}
+                    <div class="mt-4 flex justify-between items-center">
+                        <div>
+                            Showing page {{ page }} of {{ total_pages }}
+                        </div>
+                        <div class="flex space-x-2">
+                            <a href="{{ url_for('database_admin', table=selected_table, page=1) }}" 
+                               class="pagination-btn {% if page == 1 %}disabled{% endif %}">
+                                ‹‹
+                            </a>
+                            <a href="{{ url_for('database_admin', table=selected_table, page=page-1) }}" 
+                               class="pagination-btn {% if page == 1 %}disabled{% endif %}">
+                                ‹
+                            </a>
+                            
+                            {% set start_page = page - 2 if page > 2 else 1 %}
+                            {% set end_page = page + 2 if page + 2 <= total_pages else total_pages %}
+                            
+                            {% for p in range(start_page, end_page + 1) %}
+                            <a href="{{ url_for('database_admin', table=selected_table, page=p) }}" 
+                               class="pagination-btn {% if p == page %}active{% endif %}">
+                                {{ p }}
+                            </a>
+                            {% endfor %}
+                            
+                            <a href="{{ url_for('database_admin', table=selected_table, page=page+1) }}" 
+                               class="pagination-btn {% if page == total_pages %}disabled{% endif %}">
+                                ›
+                            </a>
+                            <a href="{{ url_for('database_admin', table=selected_table, page=total_pages) }}" 
+                               class="pagination-btn {% if page == total_pages %}disabled{% endif %}">
+                                ››
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif selected_table %}
+                <div class="mt-4 text-red-600">No data found in this table.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Delete Records Section -->
+        <div class="bg-white overflow-hidden shadow rounded-lg mt-6">
+            <div class="p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Delete Table Records</h2>
+                
+                <form id="deleteTableForm" action="{{ url_for('delete_table_records') }}" method="POST" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="w-full">
+                        <label for="delete_table" class="block text-sm font-medium text-gray-700 mb-1">Select Table</label>
+                        <select id="delete_table" name="delete_table" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select a table</option>
+                            {% for table_name in tables %}
+                                {% if table_name not in protected_tables %}
+                                <option value="{{ table_name }}">{{ table_name }}</option>
+                                {% else %}
+                                <option value="{{ table_name }}" disabled class="text-gray-400">{{ table_name }} (Protected)</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="button" id="showConfirmModal" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" disabled>
+                            Delete All Records
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                Warning: This operation will delete <strong>ALL</strong> records from the selected table. 
+                                This action cannot be undone. Protected tables cannot be modified.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-bold text-red-600 mb-4">Confirm Deletion</h2>
+            <p class="mb-4">Are you sure you want to delete <strong>ALL</strong> records from the table <span id="tableNameSpan" class="font-semibold"></span>?</p>
+            <p class="mb-6 text-red-600 font-semibold">This action cannot be undone!</p>
+            
+            <div class="flex justify-end space-x-4">
+                <button id="cancelDelete" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                    Cancel
+                </button>
+                <button id="confirmDelete" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                    Delete All Records
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const deleteTableSelect = document.getElementById('delete_table');
+        const showConfirmModalBtn = document.getElementById('showConfirmModal');
+        const confirmModal = document.getElementById('confirmModal');
+        const tableNameSpan = document.getElementById('tableNameSpan');
+        const cancelDeleteBtn = document.getElementById('cancelDelete');
+        const confirmDeleteBtn = document.getElementById('confirmDelete');
+        const deleteForm = document.getElementById('deleteTableForm');
+        
+        // Enable/disable delete button based on selection
+        deleteTableSelect.addEventListener('change', function() {
+            showConfirmModalBtn.disabled = !this.value;
+        });
+        
+        // Show confirmation modal
+        showConfirmModalBtn.addEventListener('click', function() {
+            const selectedTable = deleteTableSelect.value;
+            if (selectedTable) {
+                tableNameSpan.textContent = selectedTable;
+                confirmModal.style.display = 'block';
+            }
+        });
+        
+        // Hide modal on cancel
+        cancelDeleteBtn.addEventListener('click', function() {
+            confirmModal.style.display = 'none';
+        });
+        
+        // Submit form on confirm
+        confirmDeleteBtn.addEventListener('click', function() {
+            deleteForm.submit();
+        });
+        
+        // Close modal if clicked outside
+        window.addEventListener('click', function(event) {
+            if (event.target === confirmModal) {
+                confirmModal.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

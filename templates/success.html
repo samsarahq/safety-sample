@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Successful</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="bg-green-500 px-6 py-4">
+                <h1 class="text-xl font-bold text-white">Connection Successful</h1>
+            </div>
+            <div class="p-6">
+                <div class="mb-6">
+                    <div class="flex items-center justify-center mb-4">
+                        <svg class="h-12 w-12 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <p class="text-center text-gray-700 text-lg font-medium">
+                        Successfully connected to Samsara organization
+                    </p>
+                </div>
+                
+                <div class="rounded-md bg-gray-50 p-4 mb-6">
+                    <h2 class="text-gray-700 font-medium mb-2">Organization Details</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex">
+                            <span class="font-medium w-24">Name:</span>
+                            <span class="text-gray-700">{{ org_name }}</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium w-24">ID:</span>
+                            <span class="text-gray-700">{{ org_id }}</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium w-24">Region:</span>
+                            <span class="text-gray-700">{{ region | upper }}</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium w-24">Connected:</span>
+                            <span class="text-gray-700">{{ timestamp }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-center">
+                    <a href="{{ url_for('splash') }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
+                        Connect Another
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

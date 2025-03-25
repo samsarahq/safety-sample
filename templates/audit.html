@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6">Audit Log</h1>
+
+
+            <a href="{{ url_for('admin') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+            &larr; Back to Admin
+        </a>
+
+    {% if error %}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+        <p class="font-bold">Error</p>
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Filter section -->
+    <div class="bg-white shadow-md rounded-lg p-4 mb-4">
+        <h2 class="text-lg font-medium mb-3">Filters</h2>
+        <form action="{{ url_for('audit') }}" method="GET" class="flex flex-wrap gap-4">
+            <!-- Action filter -->
+            <div class="flex-1 min-w-[200px]">
+                <label for="action-filter" class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                <select id="action-filter" name="action" class="w-full border rounded p-2 bg-white text-gray-700">
+                    <option value="" {% if not action %}selected{% endif %}>All Actions</option>
+                    {% for act in actions %}
+                    <option value="{{ act }}" {% if action == act %}selected{% endif %}>{{ act }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Username filter -->
+            <div class="flex-1 min-w-[200px]">
+                <label for="username-filter" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <select id="username-filter" name="username" class="w-full border rounded p-2 bg-white text-gray-700">
+                    <option value="" {% if not username %}selected{% endif %}>All Users</option>
+                    {% for user in usernames %}
+                    <option value="{{ user }}" {% if username == user %}selected{% endif %}>{{ user }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Per page selector -->
+            <div class="flex-1 min-w-[200px]">
+                <label for="per-page" class="block text-sm font-medium text-gray-700 mb-1">Show</label>
+                <select id="per-page" name="per_page" class="w-full border rounded p-2 bg-white text-gray-700">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="-1" {% if per_page == -1 %}selected{% endif %}>All</option>
+                </select>
+            </div>
+            
+            <!-- Submit button -->
+            <div class="flex items-end">
+                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Apply Filters
+                </button>
+            </div>
+            
+            <!-- Clear filters link -->
+            <div class="flex items-end">
+                <a href="{{ url_for('audit') }}" class="px-4 py-2 text-blue-500 hover:text-blue-700">
+                    Clear Filters
+                </a>
+            </div>
+            
+            <!-- Keep current sort and direction -->
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+            <input type="hidden" name="direction" value="{{ sort_dir }}">
+        </form>
+    </div>
+
+    <div class="mb-4 flex justify-between items-center">
+        <div class="text-gray-600">
+            Total records: {{ total_records }}
+        </div>
+    </div>
+
+    <!-- Audit log table -->
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        {% for column in [
+                            ('id', 'ID'),
+                            ('timestamp', 'Timestamp'),
+                            ('action', 'Action'),
+                            ('ip_address', 'IP Address'),
+                            ('username', 'Username'),
+                            ('details', 'Details')
+                        ] %}
+                        <th scope="col" 
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                            onclick="changeSort('{{ column[0] }}')">
+                            <div class="flex items-center">
+                                {{ column[1] }}
+                                {% if sort_by == column[0] %}
+                                <span class="ml-1">{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}</span>
+                                {% endif %}
+                            </div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% if audit_logs %}
+                        {% for log in audit_logs %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ log[0] }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ log[1] }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ log[2] }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <a href="#" 
+                                   onclick="showIPInfo('{{ log[3] }}'); return false;" 
+                                   class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    {{ log[3] }}
+                                </a>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ log[4] }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">
+                                <div class="max-w-md overflow-hidden text-ellipsis">
+                                    {{ log[5] }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                                No audit logs found
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="mt-4 flex flex-col sm:flex-row justify-between items-center">
+        <div class="text-sm text-gray-700 mb-4 sm:mb-0">
+            {% set end_record = (page * per_page) if (page * per_page) <= total_records else total_records %}
+            Showing {{ ((page - 1) * per_page) + 1 }} to {{ end_record }} of {{ total_records }} entries
+        </div>
+        <div class="flex flex-wrap justify-center gap-2">
+            <button onclick="changePage(1)"
+                    {% if page == 1 %}disabled{% endif %}
+                    class="px-3 py-1 border rounded {% if page == 1 %}bg-gray-100 text-gray-400 cursor-not-allowed{% else %}bg-white text-gray-700 hover:bg-blue-50{% endif %}">
+                First
+            </button>
+            
+            <button onclick="changePage({{ page - 1 }})"
+                    {% if page == 1 %}disabled{% endif %}
+                    class="px-3 py-1 border rounded {% if page == 1 %}bg-gray-100 text-gray-400 cursor-not-allowed{% else %}bg-white text-gray-700 hover:bg-blue-50{% endif %}">
+                Previous
+            </button>
+            
+            {% set start_page = [1, page - 2]|max %}
+            {% set end_page = [total_pages, page + 2]|min %}
+            
+            {% for p in range(start_page, end_page + 1) %}
+            <button onclick="changePage({{ p }})"
+                    class="px-3 py-1 border rounded {% if p == page %}bg-blue-500 text-white{% else %}bg-white text-gray-700 hover:bg-blue-50{% endif %}">
+                {{ p }}
+            </button>
+            {% endfor %}
+            
+            <button onclick="changePage({{ page + 1 }})"
+                    {% if page == total_pages %}disabled{% endif %}
+                    class="px-3 py-1 border rounded {% if page == total_pages %}bg-gray-100 text-gray-400 cursor-not-allowed{% else %}bg-white text-gray-700 hover:bg-blue-50{% endif %}">
+                Next
+            </button>
+            
+            <button onclick="changePage({{ total_pages }})"
+                    {% if page == total_pages %}disabled{% endif %}
+                    class="px-3 py-1 border rounded {% if page == total_pages %}bg-gray-100 text-gray-400 cursor-not-allowed{% else %}bg-white text-gray-700 hover:bg-blue-50{% endif %}">
+                Last
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- IP Info Modal -->
+    <div id="ipModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full" style="z-index: 1000;">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900" id="ipModalTitle">IP Information</h3>
+                <button onclick="closeIPModal()" class="text-gray-400 hover:text-gray-500">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            <div id="ipModalContent" class="space-y-4">
+                <div class="flex items-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span class="ml-2">Loading IP information...</span>
+                </div>
+            </div>
+            <!-- Map container -->
+            <div id="ipMap" class="mt-4 h-64 w-full rounded-lg border border-gray-200"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Include Leaflet CSS and JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+function updateURL(params) {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Keep existing filters if not specified in params
+    if (!params.hasOwnProperty('action') && urlParams.has('action')) {
+        params.action = urlParams.get('action');
+    }
+    
+    if (!params.hasOwnProperty('username') && urlParams.has('username')) {
+        params.username = urlParams.get('username');
+    }
+    
+    for (const [key, value] of Object.entries(params)) {
+        if (value === null || value === '') {
+            urlParams.delete(key);
+        } else {
+            urlParams.set(key, value);
+        }
+    }
+    window.location.search = urlParams.toString();
+}
+
+function changePage(page) {
+    updateURL({ page: page });
+}
+
+function changePerPage(perPage) {
+    updateURL({ per_page: perPage, page: 1 });
+}
+
+function changeSort(column) {
+    const currentSort = '{{ sort_by }}';
+    const currentDir = '{{ sort_dir }}';
+    const newDirection = (column === currentSort && currentDir === 'asc') ? 'desc' : 'asc';
+    updateURL({ sort: column, direction: newDirection, page: 1 });
+}
+
+let map = null;
+
+async function showIPInfo(ip) {
+    // Show modal
+    document.getElementById('ipModal').classList.remove('hidden');
+    
+    // Reset content
+    document.getElementById('ipModalContent').innerHTML = `
+        <div class="flex items-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span class="ml-2">Loading IP information...</span>
+        </div>
+    `;
+    
+    try {
+        // Fetch IP information
+        const response = await fetch(`https://ipapi.co/${ip}/json/`);
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.reason || 'Failed to fetch IP information');
+        }
+        
+        // Update modal content
+        document.getElementById('ipModalContent').innerHTML = `
+            <div class="space-y-2">
+                <p><strong>IP:</strong> ${ip}</p>
+                <p><strong>Location:</strong> ${data.city || 'N/A'}, ${data.region || ''}, ${data.country_name || 'N/A'}</p>
+                <p><strong>ISP:</strong> ${data.org || 'N/A'}</p>
+                <p><strong>Timezone:</strong> ${data.timezone || 'N/A'}</p>
+            </div>
+        `;
+        
+        // Initialize or update map
+        if (data.latitude && data.longitude) {
+            if (map) {
+                map.remove();
+            }
+            map = L.map('ipMap').setView([data.latitude, data.longitude], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            L.marker([data.latitude, data.longitude]).addTo(map)
+                .bindPopup(`${ip}<br>${data.city || ''}, ${data.country_name || 'N/A'}`);
+        } else {
+            document.getElementById('ipMap').innerHTML = 'Location data not available';
+        }
+        
+    } catch (error) {
+        document.getElementById('ipModalContent').innerHTML = `
+            <div class="text-red-500">
+                Error: ${error.message || 'Failed to fetch IP information'}
+            </div>
+        `;
+        document.getElementById('ipMap').innerHTML = 'Map not available';
+    }
+}
+
+function closeIPModal() {
+    document.getElementById('ipModal').classList.add('hidden');
+    if (map) {
+        map.remove();
+        map = null;
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('ipModal');
+    const modalContent = modal.querySelector('div');
+    if (event.target === modal) {
+        closeIPModal();
+    }
+});
+</script>
+{% endblock %}
