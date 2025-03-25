@@ -299,4 +299,190 @@ To update the application:
 
 1. Back up the database
 2. Pull the latest code or replace the necessary files
-3
+3. Restart the application:
+
+```bash
+sudo systemctl restart samsara-partner
+```
+
+## Setting Up Samsara API Access
+
+### 1. Create a Samsara Developer Account
+
+1. Visit the [Samsara Developer Portal](https://developers.samsara.com/)
+2. Click on "Sign Up" in the top-right corner
+3. Complete the registration form with your details
+4. Verify your email address
+
+### 2. Create an OAuth2 Application in Samsara
+
+#### For US Region:
+
+1. Log in to the [Samsara Developer Portal](https://developers.samsara.com/)
+2. Navigate to the [Developer Console](https://cloud.samsara.com/developer/portal)
+3. Click on "Create application"
+4. Fill in the application details:
+   - **Name**: Enter a descriptive name (e.g., "Partner Portal - US")
+   - **Description**: Provide a brief description of your application
+   - **Application Type**: Select "Web Application"
+   - **Environment**: Choose "Production" for a production deployment or "Development" for testing
+   - **Organization**: Select your organization or create a new one
+5. Under "OAuth 2.0 Redirect URIs", click "Add URI" and enter your callback URL:
+   - Format: `http://your-domain/authorize` or `https://your-domain/authorize`
+   - For local testing: `http://localhost:8000/authorize`
+6. Under "Scopes", select the following required scopes:
+   - `addresses:read` (Read Addresses)
+   - `drivers:read` (Read Drivers)
+   - `driver_app_settings:read` (Read Driver App Settings)
+   - `camera_media:read` (Read Camera Media)
+   - `media_retrieval:read` (Read Media Retrieval)
+   - `safety_events_scores:read` (Read Safety Events & Scores)
+   - `admin:read` (Read Org Information)
+   - `vehicles:read` (Read Vehicles)
+   - `vehicle_stats:read` (Read Vehicle Statistics)
+   - `vehicle_trips:read` (Read Vehicle Trips)
+   - `vehicle_immobilization:read` (Read Vehicle Immobilization)
+7. Click "Create application"
+8. On the next screen, you'll be shown your:
+   - **Client ID**: Copy this to the `US_CLIENT_ID` field in your `config.py`
+   - **Client Secret**: Copy this to the `US_CLIENT_SECRET` field in your `config.py`
+
+#### For EU Region:
+
+1. Log in to the [Samsara EU Developer Portal](https://developers.eu.samsara.com/)
+2. Navigate to the [Developer Console](https://cloud.eu.samsara.com/developer/portal)
+3. Follow the same steps as for the US region, but with a different name (e.g., "Partner Portal - EU")
+4. Copy the Client ID and Client Secret to the `CLIENT_ID` and `CLIENT_SECRET` fields in your `config.py`
+
+### 3. Configure Redirect URIs
+
+Make sure to:
+
+1. Use the exact same redirect URI in both:
+   - The Samsara Developer Portal (for both US and EU applications)
+   - Your `config.py` file (in `REDIRECT_URI` and `US_REDIRECT_URI` fields)
+
+2. Include the full URL path including the protocol (http:// or https://)
+
+3. For production, use HTTPS:
+   ```
+   https://your-domain.com/authorize
+   ```
+
+4. For development/testing, you can use:
+   ```
+   http://localhost:8000/authorize
+   ```
+
+### 4. Verify Your Configuration
+
+Double-check your `config.py` file to ensure all fields are correctly filled:
+
+```python
+# EU Region
+CLIENT_ID = 'your-eu-client-id'
+CLIENT_SECRET = 'your-eu-client-secret'
+REDIRECT_URI = 'https://your-domain/authorize'
+AUTH_URL = 'https://api.eu.samsara.com/oauth2/authorize'
+TOKEN_URL = 'https://api.eu.samsara.com/oauth2/token'
+ME_URL = 'https://api.eu.samsara.com/me'
+
+# US Region
+US_CLIENT_ID = 'your-us-client-id'
+US_CLIENT_SECRET = 'your-us-client-secret'
+US_REDIRECT_URI = 'https://your-domain/authorize'
+US_AUTH_URL = 'https://api.samsara.com/oauth2/authorize'
+US_TOKEN_URL = 'https://api.samsara.com/oauth2/token'
+US_ME_URL = 'https://api.samsara.com/me'
+```
+
+### 5. Testing the OAuth Integration
+
+After setting up your application:
+
+1. Start your Samsara Partner Portal application
+2. Navigate to the splash page (usually the root URL of your application)
+3. Choose either the EU or US region
+4. Click "Connect to Samsara"
+5. You should be redirected to the Samsara login page
+6. After logging in, you'll be asked to authorize the application with the requested scopes
+7. After authorization, you should be redirected back to your application's success page
+
+## Security Considerations
+
+### Encryption
+
+The application automatically generates an encryption key for token storage. This key is stored in a file called `encryption.key` in the application directory. Make sure to:
+
+1. Set proper file permissions:
+   ```bash
+   sudo chown www-data:www-data encryption.key
+   sudo chmod 600 encryption.key
+   ```
+
+2. Back up this key securely. If you lose it, you'll lose access to all stored tokens.
+
+### Password Security
+
+1. Change the default admin password immediately after deployment
+2. Set up email configuration for password resets
+3. Use strong passwords for all admin accounts
+
+### HTTPS
+
+Always use HTTPS in production. You can set up a free SSL certificate with Let's Encrypt:
+
+```bash
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d your-domain.com
+```
+
+## Management Tasks
+
+### Adding Users
+
+1. Log in with the admin account
+2. Go to Admin > User Management
+3. Click "Add User" and fill in the required information
+
+### Managing Organizations
+
+1. Go to Admin > Manage Organizations
+2. You can view, delete, and refresh connections
+
+### Backing Up the Database
+
+Manually back up the database:
+
+```bash
+cp /opt/samsara-partner-portal/samsara.db /opt/samsara-partner-portal/backup/samsara_$(date +"%Y%m%d_%H%M%S").db
+```
+
+### Monitoring Logs
+
+View application logs:
+
+```bash
+tail -f /opt/samsara-partner-portal/logs/samsara_partner.log
+```
+
+View service logs:
+
+```bash
+sudo journalctl -u samsara-partner.service -f
+```
+
+## Upgrading Python
+
+If you need to upgrade to a newer Python version in the future:
+
+1. Install the new Python version
+2. Create a new virtual environment
+3. Reinstall dependencies
+4. Update the path in the systemd service file
+
+## Conclusion
+
+Follow this guide to successfully deploy and maintain your Samsara Partner Portal. Remember to keep your system and dependencies updated regularly for security and stability.
+
+For additional help or to report issues, please refer to the project's GitHub repository or contact the maintainers.
