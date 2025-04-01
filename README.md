@@ -1,4 +1,4 @@
-# Samsara Partner Portal
+# Samsara Safety Sample Integration
 
 A web application for managing Samsara fleet integrations, safety settings, and driver safety scores.
 
@@ -23,13 +23,69 @@ The Samsara Partner Portal allows partners to connect to Samsara customer accoun
 - SQLite for database storage
 - Internet connectivity to access Samsara APIs
 
+## Before you begin
+
+Before using the application, some configuration is required.
+
+Copy the `.env.example` file and update the following values.
+
+```bash
+cp .env.example .env
+```
+
+### Samsara API Configuration
+
+Register a application in the [Samsara Developer Portal](https://developers.samsara.com/) for both EU and/or US regions. For more
+information about the OAuth flow, see this [OAuth guide](https://developers.samsara.com/docs/oauth-20).
+
+```python
+# Samsara EU API configuration
+SAMSARA_EU_CLIENT_ID=<your samsara app's client ID>
+SAMSARA_EU_CLIENT_SECRET=<your samsara app's client secret>
+SAMSARA_EU_REDIRECT_URI=http://localhost:8000/authorize
+SAMSARA_EU_AUTH_URL=https://api.eu.samsara.com/oauth2/authorize
+SAMSARA_EU_TOKEN_URL=https://api.eu.samsara.com/oauth2/token
+SAMSARA_EU_ME_URL=https://api.eu.samsara.com/me
+
+# Samsara US API configuration
+SAMSARA_US_CLIENT_ID=<your samsara app's client ID>
+SAMSARA_US_CLIENT_SECRET=<your samsara app's client secret>
+SAMSARA_US_REDIRECT_URI=http://localhost:8000/authorize
+SAMSARA_US_AUTH_URL=https://api.samsara.com/oauth2/authorize
+SAMSARA_US_TOKEN_URL=https://api.samsara.com/oauth2/token
+SAMSARA_US_ME_URL=https://api.samsara.com/me
+```
+
+### Email Configuration (for password resets)
+
+```python
+EMAIL_SENDER = 'your-email@domain.com'
+SMTP_SERVER = 'smtp.domain.com'
+SMTP_PORT = 587
+SMTP_USERNAME = 'your-email@domain.com'
+SMTP_PASSWORD = 'your-password'
+```
+
+### Admin Configuration
+
+```python
+ADMIN_USERNAME = 'root'
+ADMIN_PASSWORD = 'your-secure-password'  # Change this from the default!
+```
+
+### Flask Configuration
+
+```python
+FLASK_SESSION_KEY = 'generate-a-secure-random-key-here'
+```
+
 ## Installation
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/samsara-partner-portal.git
-cd samsara-partner-portal
+git clone https://github.com/samsarahq/safety-sample.git
+cd safety-sample
 ```
 
 ### 2. Create a virtual environment
@@ -53,62 +109,13 @@ python app.py
 
 This will create the necessary database files and start the application on port 8000.
 
-## Configuration
-
-Before using the application, you need to configure the following in the `config.py` file:
-
-### Samsara API Configuration
-
-You need to register an application in the [Samsara Developer Portal](https://developers.samsara.com/) for both EU and/or US regions:
-
-```python
-# EU Region
-CLIENT_ID = 'your-eu-client-id'
-CLIENT_SECRET = 'your-eu-client-secret'
-REDIRECT_URI = 'http://your-domain/authorize'
-AUTH_URL = 'https://api.eu.samsara.com/oauth2/authorize'
-TOKEN_URL = 'https://api.eu.samsara.com/oauth2/token'
-ME_URL = 'https://api.eu.samsara.com/me'
-
-# US Region
-US_CLIENT_ID = 'your-us-client-id'
-US_CLIENT_SECRET = 'your-us-client-secret'
-US_REDIRECT_URI = 'http://your-domain/authorize'
-US_AUTH_URL = 'https://api.samsara.com/oauth2/authorize'
-US_TOKEN_URL = 'https://api.samsara.com/oauth2/token'
-US_ME_URL = 'https://api.samsara.com/me'
-```
-
-### Email Configuration (for password resets)
-
-```python
-EMAIL_SENDER = 'your-email@domain.com'
-SMTP_SERVER = 'smtp.domain.com'
-SMTP_PORT = 587
-SMTP_USERNAME = 'your-email@domain.com'
-SMTP_PASSWORD = 'your-password'
-```
-
-### Admin Configuration
-
-```python
-ADMIN_USERNAME = 'root'
-ADMIN_PASSWORD = 'your-secure-password'  # Change this from the default!
-```
-
-### Flask Configuration
-
-```python
-SECRET_KEY = 'generate-a-secure-random-key-here'
-```
-
 ## Usage
 
 ### User Authentication
 
 1. Start by accessing the portal at `http://localhost:8000`
 2. Log in with the admin credentials configured in `config.py`
-3. Navigate to the Admin panel to create additional users as needed
+3. Navigate to the Admin panel to create additional users as needed `http://localhost:8000/admin`
 
 ### Connecting to Samsara
 
@@ -124,6 +131,7 @@ View and manage safety settings for all connected organizations.
 ### Safety Scores
 
 View driver safety scores with filtering by:
+
 - Organization
 - Date range
 
@@ -149,7 +157,7 @@ gunicorn -w 4 -b 0.0.0.0:8000 app:app
 
 Create a systemd service file at `/etc/systemd/system/samsara-partner.service`:
 
-```
+```ini
 [Unit]
 Description=Samsara Partner Portal
 After=network.target
@@ -175,7 +183,7 @@ sudo systemctl start samsara-partner
 
 For production, you may want to set up Nginx as a reverse proxy:
 
-```
+```nginx
 server {
     listen 80;
     server_name your-domain.com;
@@ -193,6 +201,7 @@ server {
 ### Database Issues
 
 If you encounter database errors, try running the database admin tools in the application:
+
 1. Go to Admin > Database
 2. Use the VACUUM option to optimize the database
 3. Check for any error messages in the logs
@@ -200,6 +209,7 @@ If you encounter database errors, try running the database admin tools in the ap
 ### API Connection Issues
 
 If you're having trouble connecting to Samsara's API:
+
 1. Verify your Client ID and Secret in the config.py file
 2. Check that your Redirect URI is correctly configured in both the application and Samsara developer portal
 3. Ensure you're selecting the correct region (EU vs US)
@@ -207,14 +217,7 @@ If you're having trouble connecting to Samsara's API:
 ### Log Files
 
 Check the logs for detailed error messages:
+
+```bash
+less logs/samsara_partner.log
 ```
-logs/samsara_partner.log
-```
-
-## License
-
-[Include your license information here]
-
-## Contributing
-
-[Include contribution guidelines here]
