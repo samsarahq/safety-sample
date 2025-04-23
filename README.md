@@ -4,7 +4,10 @@ A web application for managing Samsara fleet integrations, safety settings, and 
 
 ## Overview
 
-The Samsara Partner Portal allows partners to connect to Samsara customer accounts via OAuth2, fetch safety settings, view driver safety scores, and manage multiple organizations' connections. It supports both US and EU Samsara API regions.
+The Samsara Partner Portal allows partners to connect to Samsara customer
+accounts via OAuth2, fetch safety settings, view driver safety scores, and
+manage multiple organizations' connections. It supports both US and EU Samsara
+API regions.
 
 ## Features
 
